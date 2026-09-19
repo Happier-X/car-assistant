@@ -67,6 +67,13 @@ fun SettingsScreen(
                         onCheckedChange = viewModel::setTriggerOnBoot,
                     )
                     SwitchRow(
+                        title = "开机时显示本应用",
+                        description = "开机流程开始时先把本应用的界面显示出来，" +
+                            "能实时看到执行进度；随后目标应用会正常覆盖到最上层",
+                        checked = settings.openSelfOnBoot,
+                        onCheckedChange = viewModel::setOpenSelfOnBoot,
+                    )
+                    SwitchRow(
                         title = "接通电源时",
                         description = "部分车机熄火不断电，只能靠上电事件触发",
                         checked = settings.triggerOnPowerConnect,

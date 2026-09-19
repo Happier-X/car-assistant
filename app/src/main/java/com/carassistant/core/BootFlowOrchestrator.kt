@@ -130,6 +130,27 @@ object BootFlowOrchestrator {
                 delay(settings.bootDelayMs.toLong())
             }
 
+            // ---------- 阶段 0.5：拉起本应用界面 ----------
+            // 开机后先把自己显示出来，用户能实时看到 WiFi/启动项的执行进度；
+            // 后面拉起的目标应用（如亿连）会自然覆盖到最上层，两者不冲突。
+            // 失败不阻断流程 —— 这只是锦上添花，不是核心任务。
+            if (settings.openSelfOnBoot) {
+                advanceState("拉起本应用界面…", completedSteps)
+                val selfOutcome = AppLauncher.launch(
+                    context = context,
+                    packageName = context.packageName,
+                    allowRoot = settings.allowRoot,
+                    verify = false, // 自己刚被服务拉活，前台复查没必要
+                )
+                if (selfOutcome.success) {
+                    RunLog.ok("本应用界面已拉起（${selfOutcome.strategy.display}）")
+                    completedSteps += "本应用：已显示"
+                } else {
+                    RunLog.w(TAG, "拉起本应用界面失败（后台启动限制？），流程继续")
+                    completedSteps += "本应用：未能显示（不阻塞）"
+                }
+            }
+
             // ---------- 阶段 1：打开 WiFi ----------
             if (settings.wifiEnabled) {
                 wifiRequested = true

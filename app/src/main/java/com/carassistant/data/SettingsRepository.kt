@@ -52,6 +52,9 @@ class SettingsRepository(private val context: Context) {
         val launchEnabled = booleanPreferencesKey("launch_enabled")
         val targetsJson = stringPreferencesKey("launch_targets_json")
 
+        /** 开机流程开始时是否拉起本应用自己的界面 */
+        val openSelfOnBoot = booleanPreferencesKey("open_self_on_boot")
+
         val allowRoot = booleanPreferencesKey("allow_root")
         val verifyLaunch = booleanPreferencesKey("verify_launch")
         val showOngoingNotification = booleanPreferencesKey("show_ongoing_notification")
@@ -69,6 +72,10 @@ class SettingsRepository(private val context: Context) {
         val wifiVerifyTimeoutMs: Int = 2_500,
         val launchEnabled: Boolean = true,
         val targets: List<LaunchTarget> = emptyList(),
+
+        /** 开机时先拉起本应用界面（用户能实时看到流程进度），默认开 */
+        val openSelfOnBoot: Boolean = true,
+
         val allowRoot: Boolean = true,
         val verifyLaunch: Boolean = true,
         val showOngoingNotification: Boolean = true,
@@ -85,6 +92,7 @@ class SettingsRepository(private val context: Context) {
             wifiVerifyTimeoutMs = prefs[Keys.wifiVerifyTimeoutMs] ?: 2_500,
             launchEnabled = prefs[Keys.launchEnabled] ?: true,
             targets = decodeTargets(prefs[Keys.targetsJson]),
+            openSelfOnBoot = prefs[Keys.openSelfOnBoot] ?: true,
             allowRoot = prefs[Keys.allowRoot] ?: true,
             verifyLaunch = prefs[Keys.verifyLaunch] ?: true,
             showOngoingNotification = prefs[Keys.showOngoingNotification] ?: true,
@@ -124,8 +132,9 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setLaunchEnabled(value: Boolean) = edit { it[Keys.launchEnabled] = value }
 
-    suspend fun setAllowRoot(value: Boolean) = edit { it[Keys.allowRoot] = value }
+    suspend fun setOpenSelfOnBoot(value: Boolean) = edit { it[Keys.openSelfOnBoot] = value }
 
+    suspend fun setAllowRoot(value: Boolean) = edit { it[Keys.allowRoot] = value }
     suspend fun setVerifyLaunch(value: Boolean) = edit { it[Keys.verifyLaunch] = value }
 
     suspend fun setShowOngoingNotification(value: Boolean) =

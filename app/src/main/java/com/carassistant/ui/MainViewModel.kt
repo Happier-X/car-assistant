@@ -206,6 +206,8 @@ class MainViewModel(
 
     fun setLaunchEnabled(value: Boolean) = launchWrite { repository.setLaunchEnabled(value) }
 
+    fun setOpenSelfOnBoot(value: Boolean) = launchWrite { repository.setOpenSelfOnBoot(value) }
+
     fun setAllowRoot(value: Boolean) = launchWrite { repository.setAllowRoot(value) }
 
     fun setVerifyLaunch(value: Boolean) = launchWrite { repository.setVerifyLaunch(value) }
