@@ -2,6 +2,7 @@ package com.carassistant.ui
 
 import androidx.compose.material.icons.Icons
 import com.carassistant.ui.icons.Build
+import com.carassistant.ui.icons.Delete
 import com.carassistant.ui.icons.Home
 import com.carassistant.ui.icons.List
 import com.carassistant.ui.icons.Settings
@@ -29,6 +30,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.carassistant.ui.screens.AppsScreen
 import com.carassistant.ui.screens.HomeScreen
 import com.carassistant.ui.screens.LogsScreen
+import com.carassistant.ui.screens.ManageScreen
 import com.carassistant.ui.screens.SettingsScreen
 import com.carassistant.ui.theme.CarAssistantTheme
 import androidx.compose.runtime.getValue
@@ -112,6 +114,7 @@ private fun CarAssistantRoot(
                     val icon = when (tab) {
                         AppTab.Home -> Icons.Filled.Home
                         AppTab.Apps -> Icons.Filled.List
+                        AppTab.Manage -> Icons.Filled.Delete
                         AppTab.Settings -> Icons.Filled.Settings
                         AppTab.Logs -> Icons.Filled.Build
                     }
@@ -158,6 +161,15 @@ private fun CarAssistantRoot(
                 modifier = contentModifier,
             )
 
+            AppTab.Manage -> ManageScreen(
+                viewModel = viewModel,
+                availableApps = availableApps,
+                filteredApps = filteredApps,
+                query = appQuery,
+                isLoading = isLoadingApps,
+                modifier = contentModifier,
+            )
+
             AppTab.Settings -> SettingsScreen(
                 viewModel = viewModel,
                 settings = settings,
@@ -177,6 +189,7 @@ private fun CarAssistantRoot(
 enum class AppTab(val label: String) {
     Home("状态"),
     Apps("启动项"),
+    Manage("管理"),
     Settings("设置"),
     Logs("日志"),
 }

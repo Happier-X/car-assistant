@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * 主界面 ViewModel。
@@ -34,6 +35,9 @@ import kotlinx.coroutines.withContext
 class MainViewModel(
     private val appContext: Context,
 ) : ViewModel() {
+
+    // 卸载防重入标志（车机双击误触时，两次调用间隔只有几毫秒）
+    private val uninstallInFlight = AtomicBoolean(false)
 
     private val repository = SettingsRepository(appContext)
 
@@ -168,21 +172,33 @@ class MainViewModel(
      * 白白等待一个不存在的应用。
      */
     fun uninstallApp(packageName: String, onResult: (Boolean, String) -> Unit) {
+        // 车机触摸屏双击误触很常见：两次点击间隔仅几毫秒时，
+        // UI 层的 busy 状态重组还来不及生效，必须在这里原子拦住第二次
+        if (!uninstallInFlight.compareAndSet(false, true)) {
+            RunLog.w("Uninstall", "忽略重复卸载请求：$packageName（上一次还在执行）")
+            return
+        }
         viewModelScope.launch {
-            val snapshot = settings.value
-            val outcome = withContext(Dispatchers.IO) {
-                AppUninstaller.uninstall(appContext, packageName, snapshot.allowRoot)
+            try {
+                val snapshot = settings.value
+                val outcome = withContext(Dispatchers.IO) {
+                    AppUninstaller.uninstall(appContext, packageName, snapshot.allowRoot)
+                }
+                outcome.trace.forEach { RunLog.i("Uninstall", "  $it") }
+                if (outcome.success) {
+                    RunLog.ok("卸载成功：$packageName（${outcome.strategy}）")
+                    // 从启动项移除被卸载的应用，避免开机时等待一个不存在的包
+                    repository.removeTarget(packageName)
+                    loadApps()
+                } else {
+                    RunLog.fail("卸载失败：$packageName（${outcome.strategy}）")
+                }
+                refreshCapabilities()
+                onResult(outcome.success, outcome.strategy)
+            } finally {
+                // 无论成功、失败还是抛异常，都放行下一次卸载
+                uninstallInFlight.set(false)
             }
-            outcome.trace.forEach { RunLog.i("Uninstall", "  $it") }
-            if (outcome.success) {
-                RunLog.ok("卸载成功：$packageName（${outcome.strategy}）")
-                repository.removeTarget(packageName)
-                loadApps()
-            } else {
-                RunLog.fail("卸载失败：$packageName（${outcome.strategy}）")
-            }
-            refreshCapabilities()
-            onResult(outcome.success, outcome.strategy)
         }
     }
 

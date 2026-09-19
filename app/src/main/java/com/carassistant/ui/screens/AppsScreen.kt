@@ -52,6 +52,7 @@ import com.carassistant.core.LaunchTarget
 import com.carassistant.data.SettingsRepository
 import com.carassistant.ui.MainViewModel
 import com.carassistant.ui.common.EmptyHint
+import com.carassistant.ui.common.UninstallConfirmDialog
 import com.carassistant.ui.common.SectionCard
 import com.carassistant.ui.common.StatusChip
 import com.carassistant.ui.common.StatusKind
@@ -625,79 +626,4 @@ private fun InfoCard(text: String) {
             color = MaterialTheme.colorScheme.primary,
         )
     }
-}
-
-// ==================== 卸载确认弹窗 ====================
-
-/**
- * 卸载前的二次确认。
- *
- * 车机场景下误触代价高（开车时手忙脚乱），所以：
- *  1. 明确列出「将被删除」的应用名和包名
- *  2. 系统应用额外警告「可通过 install-existing 恢复」
- *  3. 执行中禁止关闭弹窗，防止半途取消导致状态不明
- */
-@Composable
-private fun UninstallConfirmDialog(
-    entry: AppLauncher.AppEntry,
-    isBusy: Boolean,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("卸载应用？") },
-        text = {
-            Column {
-                Text(
-                    text = entry.label.ifBlank { entry.packageName },
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    text = entry.packageName,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = if (entry.isSystem) {
-                        "这是系统应用。将以「仅当前用户」方式移除，" +
-                            "应用数据会被清除，但安装包保留，可通过 root 恢复。"
-                    } else {
-                        "应用及其全部数据将被删除，此操作不可恢复。"
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                )
-                if (isBusy) {
-                    Spacer(Modifier.height(12.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Text(
-                            "正在卸载…",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onConfirm,
-                enabled = !isBusy,
-            ) {
-                Text("卸载", color = CarStatusColors.error)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isBusy) {
-                Text("取消")
-            }
-        },
-    )
 }
