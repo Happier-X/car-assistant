@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 深色底：车内夜间驾驶不刺眼 -->
+    <color name="window_background">#FF101418</color>
+    <color name="brand_primary">#FF4DA3FF</color>
+    <color name="brand_success">#FF4CD964</color>
+    <color name="brand_warning">#FFFFB020</color>
+    <color name="brand_error">#FFFF453A</color>
+</resources>

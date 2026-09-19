@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">车机助手</string>
+    <string name="accessibility_label">车机助手（启动兜底）</string>
+    <string name="accessibility_desc">开启后，车机助手可以在开机时可靠地拉起目标应用，并在必要时自动点击 WiFi 开关。此服务仅用于执行你配置的启动任务，不会收集任何信息。</string>
+</resources>

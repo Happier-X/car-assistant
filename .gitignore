@@ -1,0 +1,24 @@
+# Gradle
+.gradle/
+build/
+app/build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 本地配置
+local.properties
+
+# IDE
+.idea/
+*.iml
+*.hprof
+.DS_Store
+
+# 签名
+*.jks
+*.keystore
+!debug.keystore
+
+# 日志
+*.log

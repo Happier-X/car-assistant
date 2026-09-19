@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      使用 DayNight 但车机通常固定在夜间/深色模式，
+      实际配色以 Compose 侧的 colorScheme 为准，这里只做启动窗口的过渡。
+    -->
+    <style name="Theme.CarAssistant" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>
