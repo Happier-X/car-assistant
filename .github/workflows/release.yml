@@ -34,15 +34,6 @@ jobs:
           mkdir -p ~/.android
           echo "$KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
 
-      - name: Restore debug keystore
-        # 本项目 release 用 debug keystore 签名（保证车机上覆盖升级），
-        # CI 上没有 ~/.android/debug.keystore，从 Secrets 解码到相同路径
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-        run: |
-          mkdir -p ~/.android
-          echo "$KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
-
       - name: Build release APK
         run: ./gradlew :app:assembleRelease --no-daemon
 
@@ -56,20 +47,21 @@ jobs:
              car-assistant-${{ steps.ver.outputs.VERSION }}.apk
 
       - name: Read release notes
-        id: notes
         run: |
-          # 从 CHANGELOG.md 提取当前版本段落；没有 CHANGELOG 时用标签信息
+          VER="${GITHUB_REF_NAME#v}"
           if [ -f CHANGELOG.md ]; then
-            awk -v ver="$(echo "${{ steps.ver.outputs.VERSION }}" | sed 's/\./\\./g")' '
-              $0 ~ "^## \\[?"ver"?\\]?" {flag=1; next}
-              /^## / {flag=0}
-              flag
+            # 提取包含版本号的 "## " 段落直到下一个 "## " 标题
+            awk -v ver="$VER" '
+              /^## / {
+                if (found) exit
+                if (index($0, ver) > 0) { found = 1; next }
+                next
+              }
+              found { print }
             ' CHANGELOG.md > body.md
           fi
           if [ ! -s body.md ]; then
-            echo "车机助手 ${{ steps.ver.outputs.VERSION }}" > body.md
-            echo "" >> body.md
-            echo "完整变更见 commit 历史。" >> body.md
+            printf '车机助手 %s\n\n完整变更见 commit 历史。\n' "$VER" > body.md
           fi
 
       - name: Create GitHub Release
