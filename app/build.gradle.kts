@@ -20,8 +20,8 @@ android {
         // 下唯一能真正「静默打开 WiFi」的合法途径。
         // 车机是侧载场景，不走 Google Play，因此不受 targetSdk 政策约束。
         targetSdk = 28
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "1.2.1"
 
         vectorDrawables.useSupportLibrary = true
     }
