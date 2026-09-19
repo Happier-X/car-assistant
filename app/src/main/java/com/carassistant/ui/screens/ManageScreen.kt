@@ -22,11 +22,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +55,8 @@ import com.carassistant.ui.theme.CarStatusColors
  * 这里是明确的功能页面，方便清理车机上不想要的预装软件。
  *
  * 设计要点：
+ *  - 默认只显示第三方应用（也只能卸载第三方），防止在车机上误触误删系统应用；
+ *    「显示系统应用」开关打开后才列出系统应用（预装清理走「仅当前用户」可恢复路径）
  *  - 系统应用标「系统」角标，保护名单内的应用点开也只会看到「无法卸载」
  *  - 搜索同时匹配应用名和包名（预装应用的显示名常常和包名对不上）
  *  - 卸载成功后列表自动刷新（ViewModel 已处理），被删的应用即刻消失
@@ -72,6 +76,12 @@ fun ManageScreen(
     /** 卸载执行中（防止重复点击） */
     var uninstalling by remember { mutableStateOf(false) }
 
+    /** 是否显示系统应用；默认关闭 = 只能卸载第三方应用，防误删 */
+    var showSystemApps by rememberSaveable { mutableStateOf(false) }
+
+    /** 当前列表实际展示的应用（按系统应用开关过滤） */
+    val visibleApps = if (showSystemApps) filteredApps else filteredApps.filter { !it.isSystem }
+
     Column(modifier = modifier) {
         // ---- 搜索框 ----
         OutlinedTextField(
@@ -86,23 +96,42 @@ fun ManageScreen(
             shape = RoundedCornerShape(12.dp),
         )
 
-        // ---- 统计条 ----
+        // ---- 统计与过滤条 ----
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = "共 ${availableApps.size} 个应用",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = "root 卸载无弹窗 · 无 root 走系统确认页",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Column {
+                Text(
+                    text = if (showSystemApps) {
+                        "共 ${visibleApps.size} 个应用"
+                    } else {
+                        "第三方 ${visibleApps.size} 个 · 共 ${availableApps.size} 个"
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = "root 卸载无弹窗 · 无 root 走系统确认页",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "显示系统应用",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.size(6.dp))
+                Switch(
+                    checked = showSystemApps,
+                    onCheckedChange = { showSystemApps = it },
+                )
+            }
         }
 
         // ---- 应用列表 ----
@@ -120,14 +149,20 @@ fun ManageScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            } else if (filteredApps.isEmpty()) {
-                EmptyHint(if (query.isBlank()) "没有扫描到任何应用" else "没有匹配的应用")
+            } else if (visibleApps.isEmpty()) {
+                EmptyHint(
+                    when {
+                        query.isNotBlank() -> "没有匹配的应用"
+                        showSystemApps -> "没有扫描到任何应用"
+                        else -> "没有第三方应用，打开「显示系统应用」查看全部"
+                    }
+                )
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    items(filteredApps, key = { it.packageName }) { entry ->
+                    items(visibleApps, key = { it.packageName }) { entry ->
                         ManageAppRow(
                             entry = entry,
                             onClick = { pendingUninstall = entry },
