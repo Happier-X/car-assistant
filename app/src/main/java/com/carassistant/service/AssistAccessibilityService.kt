@@ -11,7 +11,7 @@ import com.carassistant.core.RunLog
 /**
  * 无障碍服务 —— 本方案里的「万能兜底」。
  *
- * ## 承担的三件事
+ * ## 承担的四件事
  *
  * 1. **代启动应用**：AccessibilityService 的 `startActivity()` 不受
  *    Android 10+ 后台启动限制约束。这是无 root 场景下，开机自动拉起
@@ -24,6 +24,10 @@ import com.carassistant.core.RunLog
  *    WINDOW_STATE_CHANGED 的包名，供启动流程校验「App 是否真的起来了」。
  *    这是无 root 时唯一可用的前台检测手段。
  *
+ * 4. **代点安装确认**：无 root 时系统安装器要求用户手动点「安装」，
+ *    车机屏幕小、按钮偏，这里按文本匹配自动点击（安装链 I4 兜底）。
+ *    该能力严格限定在安装器/设置窗口内生效，绝不会在用户自己的界面里乱点。
+ *
  * ## 为什么 UI 点击要做三轮匹配
  *
  * 车机 ROM 的设置页实现千差万别：有的用标准 `switch_widget` id，
@@ -34,6 +38,18 @@ class AssistAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "A11y"
+
+        /**
+         * 安装确认按钮的候选文案（**完全相等**匹配，不用 contains）。
+         *
+         * 覆盖 AOSP 安装器与常见 OEM 的中英文文案。
+         * 刻意不包含「确定 / OK」：这两个词在设置页等通用弹窗里太常见，
+         * 万一代点时窗口切到了设置页，容易误点。宁可少点一次，也不能乱点。
+         */
+        private val INSTALL_CONFIRM_TEXTS = listOf(
+            "安装", "继续安装", "仍要安装", "仍然安装", "下一步",
+            "Install", "INSTALL", "Continue", "Install anyway", "Next",
+        )
     }
 
     private val handler = object : AccessibilityBridge.Handler {
@@ -54,6 +70,18 @@ class AssistAccessibilityService : AccessibilityService() {
             pendingWifiToggle = false
         }
 
+        override fun requestInstallConfirm(packageName: String, timeoutMs: Long): Boolean {
+            installConfirmTarget = packageName
+            installConfirmDeadline = System.currentTimeMillis() + timeoutMs
+            pendingInstallConfirm = true
+            RunLog.i(TAG, "已受理安装确认点击任务（目标 $packageName，${timeoutMs}ms 内完成）")
+            return true
+        }
+
+        override fun cancelInstallConfirm() {
+            pendingInstallConfirm = false
+        }
+
         override fun dumpActiveWindow(): String = buildWindowDump()
     }
 
@@ -66,6 +94,14 @@ class AssistAccessibilityService : AccessibilityService() {
     private var pendingWifiToggle = false
     @Volatile
     private var wifiToggleDeadline = 0L
+
+    // ---- 待办的安装确认点击任务 ----
+    @Volatile
+    private var pendingInstallConfirm = false
+    @Volatile
+    private var installConfirmDeadline = 0L
+    @Volatile
+    private var installConfirmTarget = ""
 
     // ==================== 生命周期 ====================
 
@@ -87,6 +123,8 @@ class AssistAccessibilityService : AccessibilityService() {
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
+        pendingWifiToggle = false
+        pendingInstallConfirm = false
         AccessibilityBridge.unregister()
         RunLog.w(TAG, "无障碍服务已断开")
         return super.onUnbind(intent)
@@ -104,19 +142,80 @@ class AssistAccessibilityService : AccessibilityService() {
             event.packageName?.toString()?.let { currentPackage = it }
         }
 
-        if (!pendingWifiToggle) return
+        if (pendingWifiToggle) {
+            if (System.currentTimeMillis() > wifiToggleDeadline) {
+                pendingWifiToggle = false
+                RunLog.fail("无障碍点击 WiFi 开关超时，放弃")
+            } else if (tryToggleWifiSwitch()) {
+                pendingWifiToggle = false
+                RunLog.ok("无障碍已点开 WiFi 开关")
+                goHome()
+            }
+        }
 
-        if (System.currentTimeMillis() > wifiToggleDeadline) {
-            pendingWifiToggle = false
-            RunLog.fail("无障碍点击 WiFi 开关超时，放弃")
+        if (pendingInstallConfirm) {
+            handleInstallConfirm(event)
+        }
+    }
+
+    // ==================== 代点安装确认 ====================
+
+    /**
+     * 安装确认界面的自动点击（安装链 I4 兜底）。
+     *
+     * ## 只在安装器类窗口里动手
+     *
+     * 这个服务在整机范围内都能点击，所以必须严格限定作用域：只有当前窗口
+     * 属于已知安装器时才去找按钮，否则用户在自己的界面里
+     * 操作时会被误点。按钮文案用完全相等匹配，避免误命中含「安装」二字的普通文本。
+     *
+     * ## 为什么一轮只点一个
+     *
+     * Android 8+ 的安装流程常常是两步：先「继续安装」，再「安装」。
+     * 每轮窗口事件只点一个按钮，等下一个事件再点下一个 ——
+     * 这样即使两步之间弹出了别的东西，也不会连着点到「取消」。
+     *
+     * ## 如实报告
+     *
+     * 部分 ROM（尤其 Android 12+）会忽略无障碍服务对安装器按钮的点击。
+     * 这里点了不代表装上了，最终以 [ApkInstaller] 的 PackageManager 复查为准。
+     */
+    private fun handleInstallConfirm(event: AccessibilityEvent) {
+        if (System.currentTimeMillis() > installConfirmDeadline) {
+            pendingInstallConfirm = false
+            RunLog.fail("无障碍代点安装确认超时，放弃")
             return
         }
 
-        if (tryToggleWifiSwitch()) {
-            pendingWifiToggle = false
-            RunLog.ok("无障碍已点开 WiFi 开关")
-            goHome()
-        }
+        val pkg = event.packageName?.toString().orEmpty()
+        if (!isInstallerPackage(pkg)) return
+
+        val root = rootInActiveWindow ?: return
+        if (root.packageName?.toString() != pkg) return
+        val button = findButtonByText(root, INSTALL_CONFIRM_TEXTS) ?: return
+        val clicked = performClick(button)
+        RunLog.i(TAG, "无障碍点击安装确认按钮（$pkg）：$clicked")
+    }
+
+    /**
+     * 是否属于「安装器类」窗口。
+     *
+     * 只接受已知安装器包名；未知 ROM 保留手动确认，避免误点设置页或其它应用。
+     */
+    private fun isInstallerPackage(pkg: String): Boolean =
+        pkg in setOf(
+            "com.android.packageinstaller", "com.google.android.packageinstaller",
+            "com.android.permissioncontroller", "com.google.android.permissioncontroller",
+            "com.miui.packageinstaller", "com.samsung.android.packageinstaller",
+        )
+
+    /** 找文本完全匹配的按钮（performClick 会自动向上找可点的父容器） */
+    private fun findButtonByText(
+        root: AccessibilityNodeInfo,
+        texts: List<String>,
+    ): AccessibilityNodeInfo? = findFirst(root) { node ->
+        val text = node.text?.toString()?.trim() ?: return@findFirst false
+        texts.any { it.equals(text, ignoreCase = true) }
     }
 
     // ==================== WiFi 开关点击 ====================

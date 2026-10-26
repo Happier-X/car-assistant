@@ -48,7 +48,7 @@ import com.carassistant.ui.common.UninstallConfirmDialog
 import com.carassistant.ui.theme.CarStatusColors
 
 /**
- * 应用管理页。
+ * 应用管理页（卸载 + 安装下载）。
  *
  * 独立的卸载入口：列出车机上全部应用（包括没有启动入口的预装应用），
  * 点应用弹出卸载确认。相比藏在「启动项 → 添加应用」里的卸载小图标，
@@ -60,6 +60,10 @@ import com.carassistant.ui.theme.CarStatusColors
  *  - 系统应用标「系统」角标，保护名单内的应用点开也只会看到「无法卸载」
  *  - 搜索同时匹配应用名和包名（预装应用的显示名常常和包名对不上）
  *  - 卸载成功后列表自动刷新（ViewModel 已处理），被删的应用即刻消失
+ *
+ * 从 v1.3.0 起本页分成两个二级页：「卸载应用」与「安装下载」。
+ * 不再新增第 6 个底部标签，是因为车机屏幕上 5 个标签已经排满，
+ * 而「装应用 / 卸应用」本来就是同一件事的两面。
  */
 @Composable
 fun ManageScreen(
@@ -79,10 +83,21 @@ fun ManageScreen(
     /** 是否显示系统应用；默认关闭 = 只能卸载第三方应用，防误删 */
     var showSystemApps by rememberSaveable { mutableStateOf(false) }
 
+    /** 二级页：卸载 / 安装下载（默认卸载，保持原有使用习惯） */
+    var mode by rememberSaveable { mutableStateOf(ManageMode.Uninstall) }
+
     /** 当前列表实际展示的应用（按系统应用开关过滤） */
     val visibleApps = if (showSystemApps) filteredApps else filteredApps.filter { !it.isSystem }
 
     Column(modifier = modifier) {
+        // ---- 二级切换：卸载应用 / 安装下载 ----
+        ManageModeSwitcher(mode = mode, onSelect = { mode = it })
+
+        if (mode == ManageMode.Install) {
+            InstallSection(viewModel = viewModel, modifier = Modifier.weight(1f))
+            return@Column
+        }
+
         // ---- 搜索框 ----
         OutlinedTextField(
             value = query,
@@ -267,5 +282,59 @@ private fun Badge(text: String, color: Color) {
             style = MaterialTheme.typography.labelSmall,
             color = color,
         )
+    }
+}
+
+/** 管理页的两个二级页 */
+private enum class ManageMode(val label: String) {
+    Uninstall("卸载应用"),
+    Install("安装下载"),
+}
+
+/**
+ * 二级页切换器。
+ *
+ * 用自绘的双段控件而不是 Material 的 TabRow：车机上热区要大、文字要清楚，
+ * 两段控件正好占满一行，比标签栏更容易点中（颠簸路面手指定位精度低）。
+ */
+@Composable
+private fun ManageModeSwitcher(
+    mode: ManageMode,
+    onSelect: (ManageMode) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        ManageMode.entries.forEach { candidate ->
+            val selected = candidate == mode
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(
+                        if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
+                    )
+                    .clickable { onSelect(candidate) }
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = candidate.label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+        }
     }
 }

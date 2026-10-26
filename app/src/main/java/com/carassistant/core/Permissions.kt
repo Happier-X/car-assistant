@@ -107,4 +107,41 @@ object Permissions {
             RunLog.e("Permissions", "跳转设置页失败", it)
             false
         }
+
+    /** 是否已授予存储读取权限（扫描本机 / U 盘 APK 用） */
+    fun hasReadStorage(context: Context): Boolean =
+        ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.READ_EXTERNAL_STORAGE,
+        ) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * 是否需要主动申请存储权限。
+     *
+     * Android 13 (API 33) 起 READ_EXTERNAL_STORAGE 已被拆分/废弃，再申请没有意义
+     * （系统会直接拒绝），所以只在更低的系统上申请。
+     */
+    fun shouldRequestReadStorage(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+
+    /**
+     * 是否允许安装未知来源应用。
+     *
+     * Android 8 (API 26) 起这个开关是**按应用**给的，且默认关闭。
+     * 即使 manifest 声明了 REQUEST_INSTALL_PACKAGES，用户不去「安装未知应用」
+     * 页面给本应用打开开关，系统安装器就不会工作 —— 这也是 I3 会先检查它的原因。
+     */
+    fun canInstallPackages(context: Context): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            runCatching { context.packageManager.canRequestPackageInstalls() }.getOrDefault(false)
+        } else {
+            true
+        }
+
+    /** 跳转到「安装未知应用」授权页 */
+    fun unknownSourcesSettingsIntent(context: Context): Intent =
+        Intent(
+            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+            android.net.Uri.parse("package:${context.packageName}"),
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 }

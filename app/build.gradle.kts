@@ -20,8 +20,8 @@ android {
         // 下唯一能真正「静默打开 WiFi」的合法途径。
         // 车机是侧载场景，不走 Google Play，因此不受 targetSdk 政策约束。
         targetSdk = 28
-        versionCode = 5
-        versionName = "1.2.2"
+        versionCode = 6
+        versionName = "1.3.0"
 
         vectorDrawables.useSupportLibrary = true
     }
@@ -89,6 +89,11 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
+
+    // 唯一的第三方依赖（刻意例外）：二维码编码。
+    // 手写 QR 编码器的错误只会在真机扫码时暴露，用户无法自助排查；
+    // zxing core 是纯 Java、无传递依赖，体积代价远小于「扫不出来」的代价。
+    implementation(libs.zxing.core)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

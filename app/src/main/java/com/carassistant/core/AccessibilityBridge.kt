@@ -31,6 +31,17 @@ object AccessibilityBridge {
         /** 取消未完成的 WiFi 点击任务 */
         fun cancelWifiToggle()
 
+        /**
+         * 排入一个「代点系统安装确认」的任务。
+         *
+         * 只在安装器相关窗口里找「安装 / 继续安装」按钮并点击，
+         * 是安装链 I4 的兜底能力（车机屏幕小、按钮偏，自动点更靠谱）。
+         */
+        fun requestInstallConfirm(packageName: String, timeoutMs: Long): Boolean
+
+        /** 取消未完成的安装确认任务 */
+        fun cancelInstallConfirm()
+
         /** 导出当前窗口的控件树（诊断用） */
         fun dumpActiveWindow(): String
     }
@@ -58,6 +69,13 @@ object AccessibilityBridge {
 
     fun cancelWifiToggle() {
         handler?.cancelWifiToggle()
+    }
+
+    fun requestInstallConfirm(packageName: String, timeoutMs: Long = 120_000): Boolean =
+        handler?.requestInstallConfirm(packageName, timeoutMs) ?: false
+
+    fun cancelInstallConfirm() {
+        handler?.cancelInstallConfirm()
     }
 
     fun dumpActiveWindow(): String =

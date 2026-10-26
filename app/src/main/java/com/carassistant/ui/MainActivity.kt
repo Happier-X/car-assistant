@@ -20,6 +20,10 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.statusBarsPadding
+import com.carassistant.ui.screens.DiagnosticsScreen
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,7 +46,7 @@ import androidx.compose.runtime.setValue
  * 用 Compose 而非 XML：车机 UI 需要大量状态驱动的动态展示
  * （实时日志、执行进度、能力自检结果），声明式写法的维护成本低得多。
  *
- * 界面结构刻意保持扁平 —— 4 个标签页，没有深层导航。
+ * 界面结构刻意保持扁平 —— 5 个标签页，没有深层导航。
  * 车机上用户注意力极短，深层菜单是灾难。
  */
 class MainActivity : ComponentActivity() {
@@ -84,6 +88,12 @@ class MainActivity : ComponentActivity() {
         // 从系统设置页返回时权限状态可能已变，刷新自检。
         // 注意必须用带 Factory 的引用，否则会走默认工厂反射无参构造而崩溃
         mainViewModel.refreshCapabilities()
+        mainViewModel.expireDiagnosticReportIfNeeded()
+    }
+
+    override fun onStop() {
+        mainViewModel.stopBleTest("应用进入后台，停止 BLE 测试")
+        super.onStop()
     }
 }
 
@@ -92,6 +102,8 @@ private fun CarAssistantRoot(
     viewModel: MainViewModel,
 ) {
     var selectedTab by remember { mutableStateOf(AppTab.Home) }
+    var showingDiagnostics by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = showingDiagnostics) { showingDiagnostics = false }
 
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val capabilities by viewModel.capabilities.collectAsStateWithLifecycle()
@@ -104,6 +116,11 @@ private fun CarAssistantRoot(
     val isLoadingApps by viewModel.isLoadingApps.collectAsStateWithLifecycle()
 
     Scaffold(
+        topBar = {
+            TextButton(onClick = { showingDiagnostics = !showingDiagnostics }, modifier = Modifier.fillMaxWidth().statusBarsPadding()) {
+                Text(if (showingDiagnostics) "返回主界面" else "车机诊断 · 系统信息 / ADB / 导出报告", style = MaterialTheme.typography.titleMedium)
+            }
+        },
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             NavigationBar(
@@ -120,7 +137,7 @@ private fun CarAssistantRoot(
                     }
                     NavigationBarItem(
                         selected = selectedTab == tab,
-                        onClick = { selectedTab = tab },
+                        onClick = { selectedTab = tab; showingDiagnostics = false },
                         icon = { Icon(icon, contentDescription = tab.label) },
                         label = {
                             Text(
@@ -141,7 +158,7 @@ private fun CarAssistantRoot(
             .fillMaxSize()
             .padding(innerPadding)
 
-        when (selectedTab) {
+        if (showingDiagnostics) DiagnosticsScreen(viewModel, contentModifier) else when (selectedTab) {
             AppTab.Home -> HomeScreen(
                 viewModel = viewModel,
                 capabilities = capabilities,

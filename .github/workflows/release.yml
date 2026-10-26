@@ -31,8 +31,17 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
+          test -n "$KEYSTORE_BASE64" || { echo 'Missing KEYSTORE_BASE64'; exit 1; }
           mkdir -p ~/.android
-          echo "$KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
+          EXPECTED=7b946b6579869e69bbfb814748c7a400acfae8a0f480f44d8ad5de81e8085d6c
+          ACTUAL=$(keytool -exportcert -alias androiddebugkey -keystore ~/.android/debug.keystore -storepass android | sha256sum | cut -d ' ' -f 1)
+          test "$ACTUAL" = "$EXPECTED" || { echo 'Signing certificate mismatch; release stopped'; exit 1; }
+
+      - name: Check tag version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          grep -Fq "versionName = \"$VERSION\"" app/build.gradle.kts
 
       - name: Build release APK
         run: ./gradlew :app:assembleRelease --no-daemon

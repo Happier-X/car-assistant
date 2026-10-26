@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider 的路径白名单（安装链 I3 用）。
+
+  系统安装器只接受 content:// URI，所以要把 APK 文件通过 FileProvider 暴露出去。
+  这里只开放必要的目录，不做「整个文件系统」的宽授权：
+
+  - apk_downloads：本应用下载目录（getExternalFilesDir(null)/apk），下载的 APK 在这里
+  - apk_internal ：应用内部目录下的 apk/（外部存储不可用时的兜底下载位置）
+  - apk_external ：内部共享存储（/sdcard），本地/车机下载目录里的 APK 在这里
+  - apk_usb      ：U 盘挂载点（/mnt/...、/storage/XXXX-XXXX），插入 U 盘装包时用
+
+  注意 provider 自身是 exported=false 且 grantUriPermissions=true，
+  授权只对当次 Intent 生效，不会长期对外开放。
+-->
+<paths>
+    <external-files-path name="apk_downloads" path="apk/" />
+    <files-path name="apk_internal" path="apk/" />
+    <external-path name="apk_external" path="." />
+    <root-path name="apk_usb_mnt" path="/mnt/" />
+    <root-path name="apk_usb_storage" path="/storage/" />
+</paths>

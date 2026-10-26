@@ -225,3 +225,24 @@ private val PowerSettingsNewIcon: ImageVector by lazy {
             "c0,4.97 4.03,9 9,9s9,-4.03 9,-9c0,-2.74 -1.23,-5.18 -3.17,-6.83z"
     )
 }
+
+val Icons.Filled.Download: ImageVector
+    get() = DownloadIcon
+
+private val DownloadIcon: ImageVector by lazy {
+    icon(
+        "Filled.Download",
+        "M5,20h14v-2H5v2zM19,9h-4V3H9v6H5l7,7 7,-7z"
+    )
+}
+
+val Icons.Filled.Folder: ImageVector
+    get() = FolderIcon
+
+private val FolderIcon: ImageVector by lazy {
+    icon(
+        "Filled.Folder",
+        "M10,4H4c-1.1,0 -1.99,0.9 -1.99,2L2,18c0,1.1 0.9,2 2,2h16c1.1,0 2,-0.9 2,-2V8" +
+            "c0,-1.1 -0.9,-2 -2,-2h-8l-2,-2z"
+    )
+}

@@ -2,6 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- target28 uses legacy normal Bluetooth permissions, including on newer OS compatibility paths.
+         Do not cap these at API30 while target remains28. No scanning or location access. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+
     <!-- ==================== 开机自启 ==================== -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
@@ -9,6 +15,10 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Foreground, user-initiated Wi-Fi Direct requires FINE_LOCATION for target28, including new OS compatibility paths. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-feature android:name="android.hardware.wifi.direct" android:required="false" />
     <!--
       关键后路权限：签名级，普通安装拿不到，但可以通过
         adb shell pm grant com.carassistant android.permission.WRITE_SECURE_SETTINGS
@@ -38,6 +48,26 @@
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
+
+    <!-- ==================== 下载与安装 APK ==================== -->
+    <!--
+      手机推送的局域网 HTTP 服务（ServerSocket）与直链下载都需要它；
+      不涉及任何数据上报。推送服务只监听本机网卡、只服务局域网客户端。
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!--
+      调起系统安装器（安装链 I3）需要声明它。注意这是「按应用」的开关：
+      Android 8+ 上还需要用户在「安装未知应用」页面给本应用单独打开，
+      见 Permissions.canInstallPackages()；没有授权时我们会引导用户去开，而不是假装成功。
+    -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!--
+      扫描本机 / U 盘上的 .apk 文件需要读存储。
+      本应用 targetSdk=28 走旧版存储模型，Android 10~12 上该权限仍然有效；
+      Android 13+ 已废弃该权限，但这里保留声明（部分 ROM 仍按旧版模型授予）。
+      拿不到时页面如实提示，并按当前可见范围继续扫描，不会崩溃。
+    -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 
     <application
         android:name=".CarAssistantApp"
@@ -107,6 +137,22 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
+
+        <!-- ==================== APK 文件共享（安装链 I3 用） ==================== -->
+        <!--
+          系统安装器只接受 content:// URI（Android 7.0 起不再允许 file:// 直接传递，
+          会抛 FileUriExposedException），所以下载目录和 U 盘的 APK 都通过
+          FileProvider 暴露给安装器，且授权是「单次 URI 级」的，不对外开放。
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 </manifest>

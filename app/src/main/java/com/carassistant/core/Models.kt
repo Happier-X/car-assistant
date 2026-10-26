@@ -114,3 +114,46 @@ data class CapabilitySnapshot(
     val wifiSilentLikelyWorks: Boolean
         get() = hasRoot || appTargetSdk < 29 || hasWriteSecureSettings
 }
+
+/**
+ * 安装 APK 所用的策略（按成功率 × 侵入性排序）。
+ *
+ * 与卸载链不同，安装链的「结果」有三种而不是两种：真装上了、
+ * 只把安装器调起来了但用户没确认、彻底失败。UI 必须能区分，
+ * 否则就会出现「假装装好了」这种最坏的情况。
+ */
+enum class InstallStrategy(val display: String) {
+    ROOT_PM("root: pm install"),
+    ROOT_PM_USER("root: pm install --user 0"),
+    SYSTEM_INSTALLER("系统安装器（用户确认）"),
+    ACCESSIBILITY("无障碍代点安装确认"),
+    NOT_CONFIRMED("已调起安装器但未确认"),
+    INVALID_APK("APK 无法解析"),
+    FAILED("全部失败"),
+}
+
+/** 安装结果的三态语义 */
+enum class InstallState {
+    /** 复查确认包真的在系统里了 */
+    INSTALLED,
+
+    /** 安装器已调起（或被系统拦住），最终结果取决于用户点没点「安装」 */
+    AWAITING_CONFIRM,
+
+    /** 所有路径都没走通 */
+    FAILED,
+}
+
+/** 安装/下载相关的能力快照（与 WiFi 自检分开，避免互相拖慢） */
+data class InstallEnvSnapshot(
+    val canInstallUnknownSources: Boolean,
+    val hasReadStorage: Boolean,
+    val accessibilityReady: Boolean,
+    val rootAvailable: Boolean,
+)
+
+/** 结果提示的语义级别（UI 用来着色） */
+enum class MessageLevel { OK, WARN, ERROR }
+
+/** 安装/下载流程的最近一条结果提示（页面顶部的横幅） */
+data class InstallMessage(val text: String, val level: MessageLevel)

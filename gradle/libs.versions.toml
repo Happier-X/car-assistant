@@ -12,6 +12,9 @@ datastore = "1.2.1"
 coroutines = "1.11.0"
 serialization = "1.11.0"
 
+# 唯一的第三方运行时依赖：二维码编码（纯 Java、无传递依赖）
+zxing = "3.5.3"
+
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
@@ -32,6 +35,7 @@ androidx-compose-material-icons-core = { group = "androidx.compose.material", na
 
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
