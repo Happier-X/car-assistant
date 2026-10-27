@@ -92,6 +92,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        mainViewModel.setScanForeground(false)
         mainViewModel.stopBleTest("应用进入后台，停止 BLE 测试")
         super.onStop()
     }

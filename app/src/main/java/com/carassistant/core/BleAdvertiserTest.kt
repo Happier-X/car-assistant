@@ -89,6 +89,7 @@ class BleAdvertiserTest(private val context: Context) {
     ) {
         val busy get() = cleanupBlocked || phase == BleTestSession.Phase.STARTING || phase == BleTestSession.Phase.ADVERTISING || phase == BleTestSession.Phase.STOP_FAILED
         fun reportFields() = listOf(
+            CarDiagnostics.Field("本应用广播参数", "LOW_POWER；TX_POWER_LOW；connectable=false；timeout=30000ms；Service Data UUID=$SERVICE_UUID；载荷=43 41 31（3 字节）；单个 AD 结构 21 字节（2 字节头+16 字节 UUID+3 字节载荷），无线总长度/系统附加字段未知；未设置独立扫描响应；CarLink 私有广告内容未知", "本应用 AdvertiseSettings/AdvertiseData，不代表 CarLink"),
             CarDiagnostics.Field("BLE 最近测试时间", time, "本应用用户手动测试记录，非手机接收记录"),
             CarDiagnostics.Field("BLE 最近测试结果", result, "BluetoothLeAdvertiser 回调 / 本应用状态；不代表当前仍在广播"),
             CarDiagnostics.Field("BLE 最近测试错误", error, "原始回调错误码及含义 / 异常类型，不导出异常原文"),
@@ -123,7 +124,7 @@ class BleAdvertiserTest(private val context: Context) {
                 handler.post {
                     if (!released && session === this@Session && gate.success(token)) {
                         handler.removeCallbacks(startupTimeout)
-                        _state.value = _state.value.copy(phase = gate.phase, message = "系统已回调启动成功；最长测试 30 秒，仍需另一设备实扫", result = "onStartSuccess：系统接受广播启动", error = "无")
+                        _state.value = _state.value.copy(phase = gate.phase, message = "系统已回调启动成功；最长测试 30 秒，仍需另一设备实扫", result = "onStartSuccess @ ${eventTime()}：系统接受广播启动（此回调无数字码）；实际 settings：mode=${settingsInEffect?.mode} tx=${settingsInEffect?.txPowerLevel} connectable=${settingsInEffect?.isConnectable} timeout=${settingsInEffect?.timeout}", error = "无")
                     } else if (session === this@Session && gate.phase == BleTestSession.Phase.ADVERTISING && !released) {
                         // Duplicate success for the current active session is harmless.
                     } else {
@@ -155,7 +156,7 @@ class BleAdvertiserTest(private val context: Context) {
                     if (!released && session === this@Session && gate.failure(token)) {
                         removeTimers(this@Session)
                         session = null
-                        val error = "$errorCode / ${errorReason(errorCode)}"
+                        val error = "$errorCode / ${errorReason(errorCode)} @ ${eventTime()}"
                         _state.value = _state.value.copy(phase = gate.phase, message = "系统回调广播启动失败：$error", result = "onStartFailure", error = error)
                     }
                 }
@@ -213,7 +214,7 @@ class BleAdvertiserTest(private val context: Context) {
             handler.postDelayed(own.timeout, TIMEOUT_MS)
             advertiser.startAdvertising(settings, data, own.callback)
         } catch (e: Exception) {
-            val detail = "${e.javaClass.simpleName}（${if (e is SecurityException) "权限或系统策略拒绝" else "蓝牙调用异常，不能据此断定硬件不支持"}）"
+            val detail = "${e.javaClass.simpleName} @ ${eventTime()}（${if (e is SecurityException) "权限或系统策略拒绝" else "蓝牙调用异常，不能据此断定硬件不支持"}）"
             _state.value = _state.value.copy(message = detail, result = "启动调用抛异常", error = detail, phase = BleTestSession.Phase.FAILED)
             if (session != null) stop("启动异常后清理")
         }
@@ -222,6 +223,8 @@ class BleAdvertiserTest(private val context: Context) {
     private fun unavailable(reason: String) {
         _state.value = _state.value.copy(phase = BleTestSession.Phase.FAILED, message = reason, result = "未发起广播：$reason")
     }
+
+    private fun eventTime() = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS Z", Locale.US).format(Date())
 
     private fun removeTimers(own: Session) {
         handler.removeCallbacks(own.timeout)

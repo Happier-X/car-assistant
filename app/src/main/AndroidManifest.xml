@@ -3,7 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!-- target28 uses legacy normal Bluetooth permissions, including on newer OS compatibility paths.
-         Do not cap these at API30 while target remains28. No scanning or location access. -->
+         Do not cap these at API30 while target remains28. Manual foreground BLE scan uses location permission below. -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
