@@ -77,6 +77,49 @@ class MainViewModel(
     fun startBleScan() = bleScanner.start()
     fun stopBleScan() = bleScanner.stop()
     fun clearBleScan() = bleScanner.clear()
+
+    /**
+     * 手机侧观察登记：本应用不能自动采集，只能记录用户自述。
+     * 只保存在内存，显式导出时才进入报告；默认导出会脱敏。
+     */
+    private val _phoneObservation = MutableStateFlow(com.carassistant.core.BleDirection.PhoneObservation())
+    val phoneObservation = _phoneObservation.asStateFlow()
+
+    fun updatePhoneObservation(
+        outcome: com.carassistant.core.BleDirection.PhoneOutcome = _phoneObservation.value.outcome,
+        model: String = _phoneObservation.value.model,
+        tool: String = _phoneObservation.value.tool,
+        observedAt: String = _phoneObservation.value.observedAt,
+        note: String = _phoneObservation.value.note,
+    ) {
+        _phoneObservation.value = com.carassistant.core.BleDirection.PhoneObservation.of(outcome, model, tool, observedAt, note)
+    }
+
+    /** 可修改、可清除；清除只动登记，不动已保存的扫描结果。 */
+    fun clearPhoneObservation() {
+        _phoneObservation.value = com.carassistant.core.BleDirection.PhoneObservation()
+    }
+
+    /** 当前方向的判定（发送 / 接收分开，缺失即未知）。 */
+    fun bleDirectionVerdict(): com.carassistant.core.BleDirection.Verdict =
+        com.carassistant.core.BleDirection.verdict(
+            advertise = com.carassistant.core.BleDirection.advertiseState(bleTestState.value.phase),
+            observation = _phoneObservation.value,
+            scan = ownScan(),
+        )
+
+    /** 本机扫描证据（只给接收方向用）：是否发起过、几条、当前状态文本。 */
+    private fun ownScan() = com.carassistant.core.BleDirection.OwnScan(
+        attempted = bleScanState.value.attempted,
+        rows = bleScanState.value.rows.size,
+        message = bleScanState.value.message,
+    )
+
+    private fun bleDirectionSection(): String = com.carassistant.core.BleDirection.report(
+        advertise = com.carassistant.core.BleDirection.advertiseState(bleTestState.value.phase),
+        observation = _phoneObservation.value,
+        scan = ownScan(),
+    )
     private val _importedReports = MutableStateFlow<List<com.carassistant.core.ConnectionEvidence.Report?>>(listOf(null, null))
     val importedReports = _importedReports.asStateFlow()
     private val _importMessage = MutableStateFlow("")
@@ -90,7 +133,7 @@ class MainViewModel(
     val connectionExportBusy = _connectionExportBusy.asStateFlow()
     fun prepareConnectionExport(raw: Boolean) {
         bleScanner.stop("用户保存扫描快照")
-        pendingConnectionExport = bleScanState.value.report(raw) + "\n\n" + connectionReportSummary()
+        pendingConnectionExport = bleScanState.value.report(raw) + "\n\n" + bleDirectionSection() + "\n\n" + connectionReportSummary()
     }
     fun saveConnectionExport(uri: android.net.Uri?) {
         val text = pendingConnectionExport
@@ -153,6 +196,12 @@ class MainViewModel(
     private var diagnosticRevision = 0L
     private var reportDeadlineMillis = 0L
 
+    fun bleDirectionFields(): List<com.carassistant.core.CarDiagnostics.Field> = com.carassistant.core.BleDirection.reportFields(
+        advertise = com.carassistant.core.BleDirection.advertiseState(bleTestState.value.phase),
+        observation = _phoneObservation.value,
+        scan = ownScan(),
+    )
+
     fun expireDiagnosticReportIfNeeded() {
         if (_diagnosticReport.value != null && android.os.SystemClock.elapsedRealtime() >= reportDeadlineMillis) {
             _diagnosticReport.value = null
@@ -175,10 +224,10 @@ class MainViewModel(
                 val collected = withContext(Dispatchers.IO) {
                     com.carassistant.core.CarDiagnostics.collect(appContext)
                 }
-                val snapshot = collected.copy(fields = collected.fields + bleTestState.value.reportFields() + wifiDirectState.value.reportFields())
+                val snapshot = collected.copy(fields = collected.fields + bleTestState.value.reportFields() + bleDirectionFields() + wifiDirectState.value.reportFields())
                 _diagnostics.value = snapshot
                 if (generateReport && revision == diagnosticRevision) {
-                    val report = snapshot.report() + "\n\n" + bleScanState.value.report() + "\n\n" + connectionReportSummary()
+                    val report = snapshot.report() + "\n\n" + bleScanState.value.report() + "\n\n" + bleDirectionSection() + "\n\n" + connectionReportSummary()
                     _diagnosticReport.value = report
                     reportDeadlineMillis = android.os.SystemClock.elapsedRealtime() + 10 * 60 * 1000L
                     _diagnosticReportPublished.value = pushServer.publishDiagnosticReport(report, serverRevision)

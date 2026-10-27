@@ -16,6 +16,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.carassistant.core.BleDirection
 import com.carassistant.core.BleScanner
 import com.carassistant.core.ConnectionEvidence
 import com.carassistant.ui.MainViewModel
@@ -30,6 +31,10 @@ fun ConnectionDiagnosticsSection(viewModel: MainViewModel) {
     val owner = LocalLifecycleOwner.current
     val exportMessage by viewModel.connectionExportMessage.collectAsStateWithLifecycle()
     val exporting by viewModel.connectionExportBusy.collectAsStateWithLifecycle()
+    val observation by viewModel.phoneObservation.collectAsStateWithLifecycle()
+    val ble by viewModel.bleTestState.collectAsStateWithLifecycle()
+    // 广播回调状态、扫描状态、手机侧登记任何一项变化都要重算方向结论。
+    val verdict = viewModel.bleDirectionVerdict()
     var feedback by remember { mutableStateOf("") }
     var slot by rememberSaveable { mutableIntStateOf(0) }
     var names by remember { mutableStateOf(listOf("平板", "车机")) }
@@ -53,7 +58,21 @@ fun ConnectionDiagnosticsSection(viewModel: MainViewModel) {
         viewModel.setScanForeground(owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
         onDispose { owner.lifecycle.removeObserver(observer); viewModel.setScanForeground(false) }
     }
-    Text("BLE 限时扫描与保存", style = MaterialTheme.typography.headlineSmall)
+
+    Text("BLE 方向诊断（本应用运行在车机上）", style = MaterialTheme.typography.headlineSmall)
+    Text(BleDirection.SELF_SCAN_SCOPE)
+    Text("两个方向分开判定，缺失证据记为「未知」，不合并成一句「BLE 正常 / 异常」。", style = MaterialTheme.typography.titleMedium)
+    Text("本机广播证据：${BleDirection.advertiseState(ble.phase).label}；本机扫描证据：${if (scan.attempted) "已发起（${scan.rows.size} 条）" else "本次未发起"}")
+    Text("发送方向（车机→手机）：${verdict.send.label}", style = MaterialTheme.typography.titleMedium)
+    Text("依据：${verdict.sendReason.basis}")
+    if (verdict.sendReason.missing.isNotBlank()) Text("缺失：${verdict.sendReason.missing}")
+    verdict.sendReason.notes.forEach { Text("注意：$it") }
+    Text("接收方向（设备→车机）：${verdict.receive.label}", style = MaterialTheme.typography.titleMedium)
+    Text("依据：${verdict.receiveReason.basis}")
+    if (verdict.receiveReason.missing.isNotBlank()) Text("缺失：${verdict.receiveReason.missing}")
+    verdict.receiveReason.notes.forEach { Text("注意：$it") }
+
+    Text("接收方向：本机限时扫描（设备→车机）", style = MaterialTheme.typography.headlineSmall)
     Text(BleScanner.LIMITS)
     Text(scan.message, style = MaterialTheme.typography.titleMedium)
     Text("最近扫描错误：${scan.error}")
@@ -73,12 +92,48 @@ fun ConnectionDiagnosticsSection(viewModel: MainViewModel) {
     // Show a bounded preview; all retained rows can be saved explicitly.
     scan.rows.takeLast(12).forEach { Text(if (showRaw) it.detail() else it.summary()) }
     if (scan.rows.size > 12) Text("仅预览最后 12 条；保存文件包含已保留的全部结果。")
+
+    Text("发送方向：手机侧观察登记（车机→手机）", style = MaterialTheme.typography.headlineSmall)
+    Text("这里记录的是你在手机上看到的结果，不是本应用采集的：${BleDirection.PHONE_SIDE_DISCLAIMER}")
+    Text("建议顺序：先在上方或下方启动本应用 30 秒测试广播，再用手机扫描工具（如 nRF Connect）找 Service Data UUID ${com.carassistant.core.BleAdvertiserTest.SERVICE_UUID}、载荷 CA1，然后把结果登记到下面。本机自扫不参与发送方向判定。")
+    BleDirection.PhoneOutcome.entries.forEach { outcome ->
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            RadioButton(selected = observation.outcome == outcome, onClick = { viewModel.updatePhoneObservation(outcome = outcome) })
+            Text(outcome.label)
+        }
+    }
+    OutlinedTextField(
+        value = observation.model, onValueChange = { viewModel.updatePhoneObservation(model = it) },
+        label = { Text("手机型号（可空，最多 ${BleDirection.PhoneObservation.MAX_MODEL} 字）") },
+        placeholder = { Text("如 小米 15") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+    )
+    OutlinedTextField(
+        value = observation.tool, onValueChange = { viewModel.updatePhoneObservation(tool = it) },
+        label = { Text("手机侧扫描工具（最多 ${BleDirection.PhoneObservation.MAX_TOOL} 字）") },
+        placeholder = { Text("如 nRF Connect") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+    )
+    OutlinedTextField(
+        value = observation.observedAt, onValueChange = { viewModel.updatePhoneObservation(observedAt = it) },
+        label = { Text("观察时间（自己填，最多 ${BleDirection.PhoneObservation.MAX_TIME} 字）") },
+        placeholder = { Text("如 2026-10-28 20:15") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+    )
+    OutlinedTextField(
+        value = observation.note, onValueChange = { viewModel.updatePhoneObservation(note = it) },
+        label = { Text("备注（自由文本，最多 ${BleDirection.PhoneObservation.MAX_NOTE} 字）") },
+        minLines = 2, maxLines = 4, modifier = Modifier.fillMaxWidth(),
+    )
+    Text("备注按不可信纯文本处理：不执行、不当 HTML；默认导出会隐藏 MAC、邮箱和疑似 VIN。当前 ${observation.note.length}/${BleDirection.PhoneObservation.MAX_NOTE} 字。")
+    OutlinedButton(onClick = { viewModel.clearPhoneObservation() }, enabled = observation.outcome != BleDirection.PhoneOutcome.UNTESTED || observation.model.isNotBlank() || observation.tool.isNotBlank() || observation.observedAt.isNotBlank() || observation.note.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+        Text("清除手机侧登记")
+    }
+
+    Text("导出与导入", style = MaterialTheme.typography.headlineSmall)
     Row { Checkbox(exportRaw, { exportRaw = it }); Text("保存时包含扫描载荷：可能含设备/账号等标识，不进入网页报告") }
     OutlinedButton(onClick = {
         viewModel.prepareConnectionExport(exportRaw)
         try { saver.launch("连接诊断.txt") }
         catch (e: Exception) { viewModel.saveConnectionExport(null); feedback = "保存入口不可用：${e.javaClass.simpleName}；可用下方普通报告导出摘要。" }
-    }, enabled = !exporting, modifier = Modifier.fillMaxWidth()) { Text(if (exporting) "正在保存…" else "保存扫描与对比 TXT（默认脱敏）") }
+    }, enabled = !exporting, modifier = Modifier.fillMaxWidth()) { Text(if (exporting) "正在保存…" else "保存扫描、方向结论与对比 TXT（默认脱敏）") }
     if (exportMessage.isNotEmpty()) Text(exportMessage)
     Text("平板 / 车机报告导入对比", style = MaterialTheme.typography.headlineSmall)
     Text("选择用户自己的 TXT/日志；单份最多 512 KiB、12000 行。支持 UTF-8 或带 BOM 的 UTF-16，不执行文本/HTML。原文仅在本地进程内保留；普通报告与网页只导出阶段、行号及固定标签。关闭进程即清除，原文件不变。")
