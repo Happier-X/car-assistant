@@ -2,7 +2,7 @@
 
 本文件采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。
 
-## [Unreleased]
+## [1.4.0] - 2026-10-27
 
 ### Added
 - **BLE 方向诊断**：本应用装在车机上，诊断目标明确为「车机发出的广播手机能不能扫到」。诊断页把结论按方向拆开，缺失证据记「未知」，不合并成「BLE 正常 / 异常」：
@@ -21,10 +21,11 @@
 - 登记备注按不可信文本处理：去控制字符、折行压平、字段限长（型号/工具/时间 40 字、备注 200 字）；默认导出对 MAC、邮箱、疑似 VIN 做替换隐藏；局域网页仍以 `text/plain` 输出，不渲染 HTML。
 
 ### Changed
-- 版本号 / targetSdk / 签名不变（1.3.0 (6)、targetSdk 28、既有 debug keystore）；不新增依赖、不削弱既有确认门禁。
+- 版本号 1.3.0 (6) → 1.4.0 (7)；targetSdk 28、既有 debug keystore 签名不变；不新增依赖、不削弱既有确认门禁。
 
 ### 验证与限制
 - `testDebugUnitTest` 共 26 项：既有 11 项保持通过（其中完整材料一致性测试仍为可选、默认跳过），新增 15 项 `BleDirectionTest` 覆盖方向结论与登记字段校验。
+- `:app:lint` 保留 1 项 ExpiredTargetSdkVersion（Fatal，按约束沿用 targetSdk 28，未新增抑制）与 48 项警告。
 - 手机侧结果只能由人工登记，本应用无法自动核实；真机（2024 款科鲁泽 MyLink / Android 10 + 小米 15）双向验证仍需实测。
 
 ## [1.3.0] - 2026-10-26

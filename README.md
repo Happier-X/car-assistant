@@ -1,6 +1,6 @@
 # 车机助手 · Car Assistant
 
-## 未发布：BLE 方向诊断（连接诊断增强）
+## v1.4.0：BLE 方向诊断（连接诊断增强）
 
 **前提：本应用装在车机上**（2024 款雪佛兰科鲁泽 MyLink / Android 10）。要诊断的是「车机发出的 BLE 广播，手机（小米 15，CarWith）能不能扫到」，不是「车机能不能扫到周围设备」。车机自己在扫描时基本收不到自己刚发出的广播（同一蓝牙控制器），偶发捕获不可靠、不能作为证据，还会因为同时广播 + 扫描降低广播成功率。因此本机扫描只覆盖接收方向，永远不能证明手机能扫到车机。
 
@@ -17,9 +17,11 @@
 
 导入仅读取系统文件选择器选中的文件，不覆盖原文件。单份 512 KiB / 12000 行 / 单行 8192 字符，UTF-8 或带 BOM 的 UTF-16；未知格式保留本地原文、说明无法自动解析，不承诺支持 nRF 导出的所有格式。原文可分页查看，仅保留在进程内；不要在共享屏幕展示私密内容。最多提取 500 条事件，达到上限明确提示。按原始行序保留多次广播、成功与后续断开；建组回调仅为请求受理，认证日志仅为交互证据，缺失阶段为未知。不同来源、无年份/跨天/时区不同不作绝对时钟或尝试因果对齐。对比是阶段证据覆盖差异及共有/独有线索，不将共有异常判为根因；建议仅供后续手动验证。
 
-实现依据：[ScanResult 官方文档](https://developer.android.com/reference/android/bluetooth/le/ScanResult#getScanRecord())、[ScanRecord 字节定义](https://developer.android.com/reference/android/bluetooth/le/ScanRecord#getBytes())、[按 target 区分的蓝牙权限](https://developer.android.com/develop/connectivity/bluetooth/bt-permissions)。保留 targetSdk28、版本 1.3.0 (6)、既有签名和 P2P 门禁。本增量没有操作车机或手机；权限拒绝、无线接收、厂商 ROM、后台清理与文件选择完整交互仍需真机验收。
+实现依据：[ScanResult 官方文档](https://developer.android.com/reference/android/bluetooth/le/ScanResult#getScanRecord())、[ScanRecord 字节定义](https://developer.android.com/reference/android/bluetooth/le/ScanRecord#getBytes())、[按 target 区分的蓝牙权限](https://developer.android.com/develop/connectivity/bluetooth/bt-permissions)。保留 targetSdk28、版本 1.4.0 (7)、既有签名和 P2P 门禁。本增量没有操作车机或手机；权限拒绝、无线接收、厂商 ROM、后台清理与文件选择完整交互仍需真机验收。
 
 `app/src/test` 提供实际解析、比较、输入限制和会话门禁测试；`BleDirectionTest` 覆盖方向结论（未知 / 扫到 / 没扫到 / 载荷不符 / 只有广播回调无手机侧登记 / 无回调下的没扫到 / 接收方向独立）与登记字段校验（单行化、去控制字符、限长、默认导出脱敏）。两个资源文件来自真实报告的最小事件摘录，已去 PID/活动实例标识，摘录行号不等于原文件行号。平板 2026-10-26 报告记录 19:57:53 投屏、19:58:09 断开及后续重新广播；车机 2026-10-24 报告只匹配三次广播回调。两份都有 `startAdvertising` 栈片段；当前车机旧样本没有 `mInterval` 行，不能把该字段写成这两份材料的共有结论。原始完整报告不入库；设置 `CAR_ASSISTANT_TABLET_REPORT` / `CAR_ASSISTANT_CAR_REPORT` 为本地文件路径后，可运行可选的完整材料一致性测试。常规测试不依赖私有文件。
+
+本次发布：版本 1.4.0 (7)，targetSdk 28 与既有签名（证书 SHA-256 `7b946b65…8085d6c`）不变；本地 `testDebugUnitTest` 26 项通过（0 失败、1 项可选材料测试默认跳过），`:app:lint` 保留 1 项 ExpiredTargetSdkVersion 与 48 项警告，release APK 构建成功。BLE 方向判定、手机侧实扫、报告导入对比交互与对热点 / CarLink 的影响仍需真机验收。
 
 ## v1.3.0：车机诊断、BLE 广播与 Wi-Fi Direct
 
