@@ -1,0 +1,14 @@
+10-26 19:57:42.628 W/rhu.carlinkhome(0): Accessing hidden field Landroid/bluetooth/le/AdvertisingSetParameters$Builder;->mInterval:I (max-target-o, reflection, denied)
+10-26 19:57:42.629 E/UCar_BLEService(0): 	at com.share.connect.ble.BluetoothLeService.startAdvertising(Unknown Source:37)
+10-26 19:57:42.654 D/UCar_ShareLink-BleObserver(0): onSuccess: 1
+10-26 19:57:51.206 I/UCar_ShareLink(0): expectConnectType = 1002
+10-26 19:57:51.627 I/UCar_WifiP2pService(0): Create group onSuccess.
+10-26 19:57:52.319 D/UCar_WifiP2pService(0): hasValidClient=true, clientConnected=false
+10-26 19:57:52.521 D/UCar_ShareLink(0): onClientKeyNegotiationReceived connectType = 1001
+10-26 19:57:53.309 I/CarlinkHome(0): cast connected, set uiState=4
+10-26 19:58:09.076 D/UCar_ShareLink(0): Disconnect.
+10-26 19:58:09.193 W/UCar_ShareLink(0): wifi onDisconnected, state=idle
+10-26 19:58:20.620 D/UCar_ShareLink(0): Disconnect.
+10-26 19:58:21.305 W/rhu.carlinkhome(0): Accessing hidden field Landroid/bluetooth/le/AdvertisingSetParameters$Builder;->mInterval:I (max-target-o, reflection, denied)
+10-26 19:58:21.306 E/UCar_BLEService(0): 	at com.share.connect.ble.BluetoothLeService.startAdvertising(Unknown Source:37)
+10-26 19:58:21.334 D/UCar_ShareLink-BleObserver(0): onSuccess: 1

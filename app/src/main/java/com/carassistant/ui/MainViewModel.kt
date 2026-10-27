@@ -71,6 +71,67 @@ class MainViewModel(
     val bleTestState = bleTester.state
     fun startBleTest() = bleTester.start()
     fun stopBleTest(reason: String = "用户停止") = bleTester.stop(reason)
+    private val bleScanner = com.carassistant.core.BleScanner(appContext)
+    val bleScanState = bleScanner.state
+    fun setScanForeground(value: Boolean) = bleScanner.setForeground(value)
+    fun startBleScan() = bleScanner.start()
+    fun stopBleScan() = bleScanner.stop()
+    fun clearBleScan() = bleScanner.clear()
+    private val _importedReports = MutableStateFlow<List<com.carassistant.core.ConnectionEvidence.Report?>>(listOf(null, null))
+    val importedReports = _importedReports.asStateFlow()
+    private val _importMessage = MutableStateFlow("")
+    val importMessage = _importMessage.asStateFlow()
+    private val _importBusy = MutableStateFlow(false)
+    val importBusy = _importBusy.asStateFlow()
+    private var pendingConnectionExport: String? = null
+    private val _connectionExportMessage = MutableStateFlow("")
+    val connectionExportMessage = _connectionExportMessage.asStateFlow()
+    private val _connectionExportBusy = MutableStateFlow(false)
+    val connectionExportBusy = _connectionExportBusy.asStateFlow()
+    fun prepareConnectionExport(raw: Boolean) {
+        bleScanner.stop("用户保存扫描快照")
+        pendingConnectionExport = bleScanState.value.report(raw) + "\n\n" + connectionReportSummary()
+    }
+    fun saveConnectionExport(uri: android.net.Uri?) {
+        val text = pendingConnectionExport
+        pendingConnectionExport = null
+        if (uri == null) return
+        if (text == null) { _connectionExportMessage.value = "待保存内容已失效（可能进程已重启），请重新保存。"; return }
+        _connectionExportBusy.value = true
+        viewModelScope.launch {
+            _connectionExportMessage.value = try {
+                withContext(Dispatchers.IO) {
+                    appContext.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+                        ?: error("输出文件不可写")
+                }
+                "已保存 UTF-8 诊断文本；请自行保管或删除副本。"
+            } catch (e: Exception) { "保存失败：${e.javaClass.simpleName}；请重新选择可写位置。" }
+            _connectionExportBusy.value = false
+        }
+    }
+    fun importConnectionReport(slot: Int, uri: android.net.Uri) {
+        if (slot !in 0..1 || _importBusy.value) return
+        _importBusy.value = true
+        viewModelScope.launch {
+            try {
+                val report = withContext(Dispatchers.IO) {
+                    val text = appContext.contentResolver.openInputStream(uri)?.use { com.carassistant.core.ConnectionEvidence.read(it) }
+                        ?: error("文件无法读取")
+                    com.carassistant.core.ConnectionEvidence.parse(text)
+                }
+                _importedReports.value = _importedReports.value.toMutableList().also { it[slot] = report }
+                _importMessage.value = "来源 ${if (slot == 0) "A" else "B"} 已导入；原文件未修改，仅保存在进程内。"
+            } catch (e: Exception) {
+                _importMessage.value = "导入失败：${e.javaClass.simpleName}" + if (e is IllegalArgumentException) " / ${e.message}" else "；请检查文件权限与 UTF-8/带 BOM 的 UTF-16 编码。"
+            } finally { _importBusy.value = false }
+        }
+    }
+    fun clearConnectionReports() { if (!_importBusy.value) _importedReports.value = listOf(null, null) }
+    fun connectionReportSummary(): String = buildString {
+        appendLine("导入报告分析（默认省略原文、源路径与自定义名称）")
+        _importedReports.value.forEachIndexed { i, r -> if (r != null) appendLine(r.summary(if (i == 0) "A" else "B")) }
+        appendLine(com.carassistant.core.ConnectionEvidence.compare(_importedReports.value[0], _importedReports.value[1]))
+    }
     private val wifiDirect = com.carassistant.core.WifiDirectController(appContext)
     val wifiDirectState = wifiDirect.state
     fun enterWifiDirect() = wifiDirect.enter()
@@ -117,7 +178,7 @@ class MainViewModel(
                 val snapshot = collected.copy(fields = collected.fields + bleTestState.value.reportFields() + wifiDirectState.value.reportFields())
                 _diagnostics.value = snapshot
                 if (generateReport && revision == diagnosticRevision) {
-                    val report = snapshot.report()
+                    val report = snapshot.report() + "\n\n" + bleScanState.value.report() + "\n\n" + connectionReportSummary()
                     _diagnosticReport.value = report
                     reportDeadlineMillis = android.os.SystemClock.elapsedRealtime() + 10 * 60 * 1000L
                     _diagnosticReportPublished.value = pushServer.publishDiagnosticReport(report, serverRevision)
@@ -613,6 +674,7 @@ class MainViewModel(
         // 不留下一个「看不见但还在跑」的服务
         downloader.release()
         bleTester.release()
+        bleScanner.release()
         wifiDirect.release()
         pushServer.release()
         super.onCleared()

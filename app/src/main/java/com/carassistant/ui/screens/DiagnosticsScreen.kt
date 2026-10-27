@@ -55,6 +55,7 @@ fun DiagnosticsScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
         }
         Text(CarDiagnostics.LIMITS, style = MaterialTheme.typography.bodyLarge)
         WifiDirectSection(viewModel)
+        ConnectionDiagnosticsSection(viewModel)
         Text("BLE 蓝牙广播测试", style = MaterialTheme.typography.headlineSmall)
         Text("能力信息见上方蓝牙字段；返回系统设置后点击刷新。测试不会自动开启蓝牙，不启动连接或扫描，不影响其他应用的广播。低功耗、低发射功率、不可连接，最长 30 秒；离开本页或应用进入后台会请求停止。", style = MaterialTheme.typography.bodyLarge)
         Text(ble.message, style = MaterialTheme.typography.titleLarge)

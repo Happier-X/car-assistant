@@ -1,0 +1,6 @@
+10-24 16:06:12.275 E/UCar_BLEService(0): 	at com.share.connect.ble.BluetoothLeService.startAdvertising(Unknown Source:37)
+10-24 16:06:12.303 D/UCar_ShareLink-BleObserver(0): onSuccess: 1
+10-24 16:06:15.690 E/UCar_BLEService(0): 	at com.share.connect.ble.BluetoothLeService.startAdvertising(Unknown Source:37)
+10-24 16:06:15.707 D/UCar_ShareLink-BleObserver(0): onSuccess: 1
+10-24 16:06:18.686 E/UCar_BLEService(0): 	at com.share.connect.ble.BluetoothLeService.startAdvertising(Unknown Source:37)
+10-24 16:06:18.696 D/UCar_ShareLink-BleObserver(0): onSuccess: 1
