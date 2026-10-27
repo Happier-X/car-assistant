@@ -22,7 +22,7 @@ import java.util.Locale
 @SuppressLint("MissingPermission")
 class BleScanner(private val context: Context) {
     companion object {
-        const val LIMITS = "仅手动前台扫描 15 秒，最多 100 条结果；达到上限即停止。每条平台原始记录截取前 512 字节，厂商/Service Data 各最多 16 项、4096 字符，UUID 最多 32 项，超出部分省略，显示长度为平台原长度。RSSI 不代表距离或兼容性。ScanResult.scanRecord 是平台提供的广播与扫描响应组合，bytes 是此记录的原始字节，无法独立区分 scan response。无结果可能是权限/定位/系统节流/无线环境问题；密集回调超过处理队列上限时丢弃部分结果并在下方计数，不代表未广播。CarLink 私有内部广告内容未知，不能把附近结果自动归属于 CarLink；比较本机广播须用另一设备观察。UUID、厂商数据和原始字节可能包含身份标识，仅在本地显示；默认导出仅数量/长度，不含载荷。"
+        const val LIMITS = "本应用运行在车机上：本扫描只覆盖接收方向（设备→车机），不能证明本机广播被手机扫到；车机自扫偶发捕获自家广播不可靠，不作为证据；同时广播+扫描可能降低广播成功率，建议两件事分开做。仅手动前台扫描 15 秒，最多 100 条结果；达到上限即停止。每条平台原始记录截取前 512 字节，厂商/Service Data 各最多 16 项、4096 字符，UUID 最多 32 项，超出部分省略，显示长度为平台原长度。RSSI 不代表距离或兼容性。ScanResult.scanRecord 是平台提供的广播与扫描响应组合，bytes 是此记录的原始字节，无法独立区分 scan response。无结果可能是权限/定位/系统节流/无线环境问题；密集回调超过处理队列上限时丢弃部分结果并在下方计数，不代表未广播。CarLink 私有内部广告内容未知，不能把附近结果自动归属于 CarLink；比较本机广播须用另一设备观察。UUID、厂商数据和原始字节可能包含身份标识，仅在本地显示；默认导出仅数量/长度，不含载荷。"
         fun failure(code: Int) = when (code) {
             1 -> "SCAN_FAILED_ALREADY_STARTED"
             2 -> "SCAN_FAILED_APPLICATION_REGISTRATION_FAILED"
@@ -39,9 +39,9 @@ class BleScanner(private val context: Context) {
         fun summary() = "$time · bootNs=$observedNanos · RSSI=$rssi dBm · 可连接=$connectable · 平台记录=$byteCount 字节"
         fun detail() = "${summary()}\nUUID=$uuids\n厂商数据=$manufacturer\nService Data=$service\n平台原始字节=$raw"
     }
-    data class Snapshot(val message: String = "尚未开始扫描", val busy: Boolean = false, val rows: List<Row> = emptyList(), val error: String = "无", val dropped: Int = 0) {
+    data class Snapshot(val message: String = "尚未开始扫描", val busy: Boolean = false, val rows: List<Row> = emptyList(), val error: String = "无", val dropped: Int = 0, val attempted: Boolean = false) {
         fun report(raw: Boolean = false) = buildString {
-            appendLine("BLE 限时扫描：$message；${rows.size} 条；丢弃密集回调 $dropped 条；未读取设备 MAC/名称")
+            appendLine("BLE 限时扫描（接收方向：设备→车机）：$message；本次已发起扫描=${if (attempted) "是" else "否"}；${rows.size} 条；丢弃密集回调 $dropped 条；未读取设备 MAC/名称")
             appendLine("最近扫描错误：$error")
             rows.forEach { appendLine(if (raw) it.detail() else it.summary()) }
             append(LIMITS)
@@ -90,7 +90,7 @@ class BleScanner(private val context: Context) {
     fun start() {
         check(Looper.myLooper() == Looper.getMainLooper())
         if (released || !foreground || !registered || gate.token != null) return
-        mutable.value = Snapshot("正在检查扫描条件")
+        mutable.value = Snapshot("正在检查扫描条件", attempted = true)
         dropped.set(0)
         try {
             if (!context.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) throw Unavailable("系统未声明 BLE 支持")
@@ -128,7 +128,7 @@ class BleScanner(private val context: Context) {
         } catch (e: Exception) {
             val message = "${now()} 扫描未能开始：${e.javaClass.simpleName}" + if (e is Unavailable) " / ${e.message}" else "（权限或系统限制，请检查设置）"
             mutable.value = mutable.value.copy(error = message)
-            if (gate.token != null) stop(message) else mutable.value = Snapshot(message, error = message)
+            if (gate.token != null) stop(message) else mutable.value = Snapshot(message, error = message, attempted = true)
         }
     }
     private fun accept(token: Long, result: ScanResult) {

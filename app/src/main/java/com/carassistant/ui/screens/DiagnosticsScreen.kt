@@ -37,7 +37,7 @@ fun DiagnosticsScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     }
     Column(modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("车机诊断", style = MaterialTheme.typography.headlineMedium)
-        Text("信息只读；BLE 广播须手动测试 · 无需 root。请停车后操作。", style = MaterialTheme.typography.bodyLarge)
+        Text("信息只读；BLE 广播须手动测试 · 无需 root。本应用装在车机上：手机能否扫到车机广播，只能在手机上观察后由你登记。请停车后操作。", style = MaterialTheme.typography.bodyLarge)
         Button(onClick = { viewModel.refreshDiagnostics() }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
             Text(if (busy) "正在后台读取…" else "刷新诊断（清除旧报告）")
         }
@@ -56,8 +56,9 @@ fun DiagnosticsScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
         Text(CarDiagnostics.LIMITS, style = MaterialTheme.typography.bodyLarge)
         WifiDirectSection(viewModel)
         ConnectionDiagnosticsSection(viewModel)
-        Text("BLE 蓝牙广播测试", style = MaterialTheme.typography.headlineSmall)
-        Text("能力信息见上方蓝牙字段；返回系统设置后点击刷新。测试不会自动开启蓝牙，不启动连接或扫描，不影响其他应用的广播。低功耗、低发射功率、不可连接，最长 30 秒；离开本页或应用进入后台会请求停止。", style = MaterialTheme.typography.bodyLarge)
+        Text("BLE 蓝牙广播测试（发送方向：车机→手机）", style = MaterialTheme.typography.headlineSmall)
+        Text("本应用运行在车机上，这里只负责让车机把测试广播发出去。能力信息见上方蓝牙字段；返回系统设置后点击刷新。测试不会自动开启蓝牙，不启动连接或扫描，不影响其他应用的广播。低功耗、低发射功率、不可连接，最长 30 秒；离开本页或应用进入后台会请求停止。", style = MaterialTheme.typography.bodyLarge)
+        Text("启动回调成功只代表系统受理了请求，不代表手机收得到。手机能不能扫到，须用另一设备（如手机 nRF Connect 找 Service Data UUID ${BleAdvertiserTest.SERVICE_UUID}、载荷 CA1）实扫后，到上方「手机侧观察登记」记录结果；不登记就一律算未知。", style = MaterialTheme.typography.bodyLarge)
         Text(ble.message, style = MaterialTheme.typography.titleLarge)
         Text("最近测试：${ble.time}\n结果：${ble.result}\n错误：${ble.error}\n停止记录：${ble.cleanup}\n迟到回调清理：${ble.lateCleanup}\n开关监听：${ble.receiver}", style = MaterialTheme.typography.bodyLarge)
         Button(onClick = { viewModel.startBleTest() }, enabled = !ble.busy, modifier = Modifier.fillMaxWidth()) {
