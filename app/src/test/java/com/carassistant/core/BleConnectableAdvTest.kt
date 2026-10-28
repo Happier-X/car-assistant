@@ -242,6 +242,75 @@ class BleConnectableAdvTest {
         }
     }
 
+    // ---- 启动回调的分发顺序（回归：FEATURE_UNSUPPORTED 不能被报成成功） ----
+
+    @Test
+    fun startedCallbackDispatchChecksStatusBeforeAdvancingSession() {
+        // 纯分发：只有 status==0 才算系统受理成功。
+        assertEquals(BleConnectableAdv.ModeState.STARTED, BleConnectableAdv.startedOutcome(0))
+        assertEquals(BleConnectableAdv.ModeState.FAILED_DATA_TOO_LARGE, BleConnectableAdv.startedOutcome(1))
+        assertEquals(BleConnectableAdv.ModeState.FAILED_TOO_MANY_ADVERTISERS, BleConnectableAdv.startedOutcome(2))
+        assertEquals(BleConnectableAdv.ModeState.FAILED_ALREADY_STARTED, BleConnectableAdv.startedOutcome(3))
+        assertEquals(BleConnectableAdv.ModeState.FAILED_INTERNAL_ERROR, BleConnectableAdv.startedOutcome(4))
+        assertEquals(BleConnectableAdv.ModeState.FAILED_FEATURE_UNSUPPORTED, BleConnectableAdv.startedOutcome(5))
+        assertEquals(BleConnectableAdv.ModeState.FAILED_UNKNOWN, BleConnectableAdv.startedOutcome(99))
+
+        // 按控制器的真实顺序演一遍：先分发，非 STARTED 只走 failure，绝不调 success。
+        val failedGate = BleTestSession()
+        val failedToken = failedGate.begin()!!
+        val failedOutcome = BleConnectableAdv.startedOutcome(5)
+        assertNotEquals(BleConnectableAdv.ModeState.STARTED, failedOutcome)
+        if (failedOutcome == BleConnectableAdv.ModeState.STARTED) failedGate.success(failedToken) else failedGate.failure(failedToken)
+        assertEquals(BleTestSession.Phase.FAILED, failedGate.phase)
+        assertEquals(BleConnectableAdv.ModeState.FAILED_FEATURE_UNSUPPORTED, BleConnectableAdv.modeState(failedGate.phase, 5))
+        // 结论必须变成「分离成立」，而不是「两种模式都有启动成功回调」。
+        val failedCombination = BleConnectableAdv.combination(started, BleConnectableAdv.modeState(failedGate.phase, 5))
+        assertTrue(failedCombination.separation.contains("分离成立"))
+        assertFalse(failedCombination.separation.contains("未分离"))
+        val section = BleConnectableAdv.exportSection(
+            plain = started,
+            mode = BleConnectableAdv.modeState(failedGate.phase, 5),
+            result = "onAdvertisingSetStarted 失败：status=5",
+        )
+        assertTrue(section.contains("失败：系统报告不支持此广播功能（能力结论）"))
+
+        // status==0 才推进到 ADVERTISING。
+        val okGate = BleTestSession()
+        val okToken = okGate.begin()!!
+        assertEquals(BleConnectableAdv.ModeState.STARTED, BleConnectableAdv.startedOutcome(0))
+        assertTrue(okGate.success(okToken))
+        assertEquals(BleTestSession.Phase.ADVERTISING, okGate.phase)
+        assertEquals(BleConnectableAdv.ModeState.STARTED, BleConnectableAdv.modeState(okGate.phase, 0))
+    }
+
+    @Test
+    fun nonZeroStatusIsNeverStartedInAnyPhase() {
+        // 防御层：只要带回非 0 状态码，无论会话处于哪个阶段都不得返回 STARTED。
+        for (phase in BleTestSession.Phase.entries) {
+            for (status in intArrayOf(1, 2, 3, 4, 5, 99)) {
+                val state = BleConnectableAdv.modeState(phase, status)
+                assertNotEquals("phase=$phase status=$status 不得为 STARTED", BleConnectableAdv.ModeState.STARTED, state)
+                assertEquals("phase=$phase status=$status 应按状态码归类", BleConnectableAdv.classify(status), state)
+            }
+        }
+        // 上一版漏洞的三个具体点：回调已把会话推进到 ADVERTISING/STOPPED 时残留的非 0 状态码。
+        assertEquals(
+            BleConnectableAdv.ModeState.FAILED_FEATURE_UNSUPPORTED,
+            BleConnectableAdv.modeState(BleTestSession.Phase.ADVERTISING, 5),
+        )
+        assertEquals(
+            BleConnectableAdv.ModeState.FAILED_DATA_TOO_LARGE,
+            BleConnectableAdv.modeState(BleTestSession.Phase.ADVERTISING, 1),
+        )
+        assertEquals(
+            BleConnectableAdv.ModeState.FAILED_TOO_MANY_ADVERTISERS,
+            BleConnectableAdv.modeState(BleTestSession.Phase.STOPPED, 2),
+        )
+        // 没有非 0 状态码时，成功阶段仍然算成功。
+        assertEquals(BleConnectableAdv.ModeState.STARTED, BleConnectableAdv.modeState(BleTestSession.Phase.ADVERTISING, 0))
+        assertEquals(BleConnectableAdv.ModeState.STARTED, BleConnectableAdv.modeState(BleTestSession.Phase.STOPPED, null))
+    }
+
     @Test
     fun untestedModeIsReportedAsUnknownNotAsSupport() {
         val combination = BleConnectableAdv.combination(notTested, BleConnectableAdv.ModeState.NOT_TESTED)

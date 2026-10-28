@@ -226,36 +226,23 @@ class BleConnectableAdvertiserTest(private val context: Context) {
                     )
                     val own = this@Session
                     val current = session === own
-                    if (current && gate.success(own.token)) {
-                        handler.removeCallbacks(own.startupTimeout)
-                        _state.value = _state.value.copy(
-                            phase = gate.phase,
-                            startedStatus = status,
-                            timedOut = false,
-                            actualParams = "txPower=${txPower}dBm；AdvertisingSetParameters.toString()=${paramsText(own)}",
-                            message = "系统回调启动成功（status=0）；最长 30 秒，仍需另一设备实扫",
-                            result = "onAdvertisingSetStarted status=0 @ ${eventTime(own)}",
-                            error = "无",
-                        )
-                        return@post
-                    }
-                    if (current && _state.value.phase == BleTestSession.Phase.ADVERTISING) {
-                        // 当前会话重复回调：无害，只记录。
-                        return@post
-                    }
-                    if (current && gate.failure(own.token)) {
+                    // 关键顺序：onAdvertisingSetStarted 是成功/失败共用回调，先按 status 分发；
+                    // status != 0 绝不推进会话（否则 FEATURE_UNSUPPORTED 会被报成启动成功）。
+                    val outcome = BleConnectableAdv.startedOutcome(status)
+                    if (current && outcome != BleConnectableAdv.ModeState.STARTED) {
                         // 真实启动失败：保留数字状态码，按归类给出归因（数据/环境/能力/系统/未知）。
                         handler.removeCallbacks(own.startupTimeout)
                         handler.removeCallbacks(own.timeout)
-                        session = null
                         val detail = "status=$status（${BleConnectableAdv.statusName(status)}）@ ${eventTime(own)}"
+                        val failed = gate.failure(own.token)
+                        if (failed) session = null
                         _state.value = _state.value.copy(
-                            phase = gate.phase,
+                            phase = if (failed) gate.phase else _state.value.phase,
                             startedStatus = status,
                             timedOut = false,
                             result = "onAdvertisingSetStarted 失败：$detail",
                             error = detail,
-                            message = "系统回调启动失败：${BleConnectableAdv.classify(status).label}",
+                            message = "系统回调启动失败：${outcome.label}",
                         )
                         // 失败也要提交一次停止请求，避免在系统侧留下未清理的广播集。
                         val failureOnFailure = stopOwn(own)
@@ -263,6 +250,23 @@ class BleConnectableAdvertiserTest(private val context: Context) {
                             retiredStops[own] = failureOnFailure
                             updateLateCleanup()
                         }
+                        return@post
+                    }
+                    if (current && gate.success(own.token)) {
+                        handler.removeCallbacks(own.startupTimeout)
+                        _state.value = _state.value.copy(
+                            phase = gate.phase,
+                            startedStatus = status,
+                            timedOut = false,
+                            actualParams = "txPower=${txPower}dBm；AdvertisingSetParameters.toString()=${paramsText(own)}",
+                            message = "系统回调启动成功（status=$status ${BleConnectableAdv.statusName(status)}）；最长 30 秒，仍需另一设备实扫",
+                            result = "onAdvertisingSetStarted status=$status @ ${eventTime(own)}",
+                            error = "无",
+                        )
+                        return@post
+                    }
+                    if (current && _state.value.phase == BleTestSession.Phase.ADVERTISING) {
+                        // 当前会话重复回调：无害，只记录。
                         return@post
                     }
                     // 迟到的成功回调：本会话已经不成立（超时/已取消）。只停这一个 callback。

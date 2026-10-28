@@ -12,8 +12,11 @@
 - 能力字段：`isMultipleAdvertisementSupported`、`bluetoothLeAdvertiser` 是否可取、`isLeExtendedAdvertisingSupported`（取不到/异常写「未知」）、适配器当前状态、蓝牙开关。
 - 报告新增表格化字段与「两种广播模式对照」组合结论（非连接是否成功 / 可连接是否成功 / 两者是否分离），并固定写出「启动回调成功 ≠ 手机能收到」；默认导出只给结构与长度，不写载荷/标签字节。离页、后台、蓝牙关闭与 ViewModel 释放只停本应用这个 callback/广播集。
 
+### Fixed
+- 修正 `onAdvertisingSetStarted` 的判定顺序：该回调**成功与失败共用**，首版先调 `gate.success()` 再判 status，会把 `FEATURE_UNSUPPORTED`（以及 `DATA_TOO_LARGE` / `TOO_MANY_ADVERTISERS` / `INTERNAL_ERROR`）误报成「启动成功」，还会在 result 里硬编码 `status=0` 覆盖真实数字码，导致最该被抓到的能力结论失效。现在先用 `BleConnectableAdv.startedOutcome(status)` 分发：只有 `status == 0` 才推进会话，非 0 一律走 `gate.failure` + 状态码归类；`modeState()` 增加防御层（任何阶段带回非 0 状态码都不得返回 `STARTED`）；成功分支的 message/result 改用实际 status。
+
 ### 验证与限制
-- `testDebugUnitTest` 共 38 项通过、0 失败、1 项可选材料测试默认跳过（既有 26 项 + 新增 12 项 `BleConnectableAdvTest`：启动超时不算成功、失败阶段即使 status=0 也不写成成功、非 0 状态码归类并保留数字码、`DATA_TOO_LARGE` 与 `FEATURE_UNSUPPORTED` 归类不同、`TOO_MANY_ADVERTISERS` 指向 CarLink 而非能力、两模式门禁/载荷互不污染、默认导出不泄露载荷、组合结论不声称手机已收到）。
+- `testDebugUnitTest` 共 40 项通过、0 失败、1 项可选材料测试默认跳过（既有 26 项 + 新增 14 项 `BleConnectableAdvTest`：启动超时不算成功、失败阶段即使 status=0 也不写成成功、非 0 状态码归类并保留数字码且任何阶段都不得报成成功、启动回调先判 status 再推进会话（0→成功、5/1/2/3/4/99→对应失败态）、`DATA_TOO_LARGE` 与 `FEATURE_UNSUPPORTED` 归类不同、`TOO_MANY_ADVERTISERS` 指向 CarLink 而非能力、两模式门禁/载荷互不污染、默认导出不泄露载荷、组合结论不声称手机已收到）。
 - `:app:lint` 0 error、43 warning（含 `ExpiredTargetSdkVersion`，按约束沿用 targetSdk 28），未新增抑制、未新增告警来源。
 - 本轮**只出测试 APK，未发版、未推送、未打标签**：版本号保持 1.4.0 (7)、targetSdk 28、既有 debug keystore 签名（证书 SHA-256 `7b946b65…8085d6c`）不变。可连接广播的真机行为（车机是否真的发出可连接广播、手机能否扫到 `CA2`）仍需实机验证，本文件不声称已验证。
 
