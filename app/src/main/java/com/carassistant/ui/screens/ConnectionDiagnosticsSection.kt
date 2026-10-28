@@ -95,7 +95,7 @@ fun ConnectionDiagnosticsSection(viewModel: MainViewModel) {
 
     Text("发送方向：手机侧观察登记（车机→手机）", style = MaterialTheme.typography.headlineSmall)
     Text("这里记录的是你在手机上看到的结果，不是本应用采集的：${BleDirection.PHONE_SIDE_DISCLAIMER}")
-    Text("建议顺序：先在上方或下方启动本应用 30 秒测试广播，再用手机扫描工具（如 nRF Connect）找 Service Data UUID ${com.carassistant.core.BleAdvertiserTest.SERVICE_UUID}、载荷 CA1，然后把结果登记到下面。本机自扫不参与发送方向判定。")
+    Text("建议顺序：先在上方或下方启动本应用 30 秒测试广播，再用手机扫描工具（如 nRF Connect）找 Service Data UUID ${com.carassistant.core.BleAdvertiserTest.SERVICE_UUID}、载荷 CA1，然后把结果登记到下面。本机自扫不参与发送方向判定。测「模式二：可连接广播」时，手机侧要找同一 UUID 下的载荷 CA2、以及扫描响应里的公司 ID 0xFFFF + 标签 CA2；这一组结果请写进备注，下面的登记只对应模式一的 CA1。")
     BleDirection.PhoneOutcome.entries.forEach { outcome ->
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             RadioButton(selected = observation.outcome == outcome, onClick = { viewModel.updatePhoneObservation(outcome = outcome) })

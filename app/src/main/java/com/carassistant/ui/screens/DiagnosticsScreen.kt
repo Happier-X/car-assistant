@@ -29,11 +29,20 @@ fun DiagnosticsScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     val published by viewModel.diagnosticReportPublished.collectAsStateWithLifecycle()
     val push by viewModel.pushState.collectAsStateWithLifecycle()
     val ble by viewModel.bleTestState.collectAsStateWithLifecycle()
+    val connectable by viewModel.bleConnectableState.collectAsStateWithLifecycle()
+    // 两种模式各自的证据只读，组合结论在纯逻辑里算（不把启动回调当「手机能收到」）。
+    val connectableCombination = com.carassistant.core.BleConnectableAdv.combination(
+        com.carassistant.core.BleDirection.advertiseState(ble.phase),
+        connectable.mode,
+    )
     val context = LocalContext.current
     var feedback by remember { mutableStateOf("") }
     LaunchedEffect(Unit) { viewModel.refreshDiagnostics() }
     DisposableEffect(viewModel) {
-        onDispose { viewModel.stopBleTest("已离开车机诊断页") }
+        onDispose {
+            viewModel.stopBleTest("已离开车机诊断页")
+            viewModel.stopBleConnectableTest("已离开车机诊断页")
+        }
     }
     Column(modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("车机诊断", style = MaterialTheme.typography.headlineMedium)
@@ -56,7 +65,7 @@ fun DiagnosticsScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
         Text(CarDiagnostics.LIMITS, style = MaterialTheme.typography.bodyLarge)
         WifiDirectSection(viewModel)
         ConnectionDiagnosticsSection(viewModel)
-        Text("BLE 蓝牙广播测试（发送方向：车机→手机）", style = MaterialTheme.typography.headlineSmall)
+        Text("BLE 蓝牙广播测试（模式一：不可连接 · 对照组）", style = MaterialTheme.typography.headlineSmall)
         Text("本应用运行在车机上，这里只负责让车机把测试广播发出去。能力信息见上方蓝牙字段；返回系统设置后点击刷新。测试不会自动开启蓝牙，不启动连接或扫描，不影响其他应用的广播。低功耗、低发射功率、不可连接，最长 30 秒；离开本页或应用进入后台会请求停止。", style = MaterialTheme.typography.bodyLarge)
         Text("启动回调成功只代表系统受理了请求，不代表手机收得到。手机能不能扫到，须用另一设备（如手机 nRF Connect 找 Service Data UUID ${BleAdvertiserTest.SERVICE_UUID}、载荷 CA1）实扫后，到上方「手机侧观察登记」记录结果；不登记就一律算未知。", style = MaterialTheme.typography.bodyLarge)
         Text(ble.message, style = MaterialTheme.typography.titleLarge)
@@ -68,6 +77,39 @@ fun DiagnosticsScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
         OutlinedButton(onClick = { feedback = openBluetoothSettings(context, true) }, modifier = Modifier.fillMaxWidth()) { Text("请求系统开启蓝牙") }
         OutlinedButton(onClick = { feedback = openBluetoothSettings(context, false) }, modifier = Modifier.fillMaxWidth()) { Text("打开蓝牙设置 / 权限") }
         Text(BleAdvertiserTest.LIMITS, style = MaterialTheme.typography.bodyLarge)
+        Text("模式二：BLE 可连接 / 可扫描广播测试（与模式一互相独立）", style = MaterialTheme.typography.headlineSmall)
+        Text(
+            "为什么多测一组：模式一是 startAdvertising + connectable=false，只能证明车机发得出非连接广播；" +
+                "CarLink 车机端用的是 startAdvertisingSet + connectable=true + scannable=true，所以「能不能发可连接广播」必须单独测一次。" +
+                "两个模式各自独立门禁、独立计时与停止清理，先跑模式一拿到对照组，再跑模式二，结果不会互相污染。",
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Text("参数（请求值）：${com.carassistant.core.BleConnectableAdv.PARAMETERS}", style = MaterialTheme.typography.bodyLarge)
+        Text(com.carassistant.core.BleConnectableAdvertiserTest.TIMING_NOTE, style = MaterialTheme.typography.bodyLarge)
+        Text(connectable.message, style = MaterialTheme.typography.titleLarge)
+        Text(
+            "最近测试：${connectable.time}\n结果：${connectable.result}\n错误：${connectable.error}\n" +
+                "停止记录：${connectable.cleanup}\n系统/实际参数：${connectable.actualParams}\n开关监听：${connectable.receiver}",
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Text(com.carassistant.core.BleConnectableAdv.detailLine(), style = MaterialTheme.typography.bodyLarge)
+        Text(com.carassistant.core.BleConnectableAdv.budgetLine(), style = MaterialTheme.typography.bodyLarge)
+        Button(onClick = { viewModel.startBleConnectableTest() }, enabled = !connectable.busy, modifier = Modifier.fillMaxWidth()) {
+            Text("开始可连接 / 可扫描广播测试（30 秒）")
+        }
+        OutlinedButton(onClick = { viewModel.stopBleConnectableTest() }, enabled = connectable.busy, modifier = Modifier.fillMaxWidth()) {
+            Text("停止 / 重试停止可连接广播")
+        }
+        Text("两种模式对照（一眼判读）", style = MaterialTheme.typography.titleMedium)
+        connectableCombination.lines().forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
+        Text(
+            "回调记录（共 ${connectable.events.size} 条，最近 10 条）：" +
+                if (connectable.events.isEmpty()) "暂无" else "",
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        connectable.events.takeLast(10).forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        Text(com.carassistant.core.BleConnectableAdv.DATA_NOTE, style = MaterialTheme.typography.bodyLarge)
+        Text(com.carassistant.core.BleConnectableAdv.LIMITS, style = MaterialTheme.typography.bodyLarge)
         Button(onClick = { feedback = openDiagnosticSettings(context, true) }, modifier = Modifier.fillMaxWidth()) {
             Text("尝试打开开发者选项")
         }

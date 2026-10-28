@@ -71,6 +71,33 @@ class MainViewModel(
     val bleTestState = bleTester.state
     fun startBleTest() = bleTester.start()
     fun stopBleTest(reason: String = "用户停止") = bleTester.stop(reason)
+
+    /**
+     * 第二种广播模式：可连接 / 可扫描广播（startAdvertisingSet）。
+     * 与上面的对照模式（startAdvertising + connectable=false）各自独立门禁、独立状态；
+     * 两个模式可以分别跑，结果不会互相污染。
+     */
+    private val bleConnectableTester = com.carassistant.core.BleConnectableAdvertiserTest(appContext)
+    val bleConnectableState = bleConnectableTester.state
+    fun startBleConnectableTest() = bleConnectableTester.start()
+    fun stopBleConnectableTest(reason: String = "用户停止") = bleConnectableTester.stop(reason)
+
+    /** 可连接模式的报告字段（含两种模式的对照结论）；对照模式证据只读，不参与本模式判定。 */
+    fun bleConnectableFields(): List<com.carassistant.core.CarDiagnostics.Field> =
+        bleConnectableState.value.reportFields(
+            plain = com.carassistant.core.BleDirection.advertiseState(bleTestState.value.phase),
+            capability = com.carassistant.core.BleConnectableAdvertiserTest.capabilityFields(appContext),
+        )
+
+    private fun connectableAdvSection(): String = com.carassistant.core.BleConnectableAdv.exportSection(
+        plain = com.carassistant.core.BleDirection.advertiseState(bleTestState.value.phase),
+        mode = bleConnectableState.value.mode,
+        callbacks = bleConnectableState.value.events,
+        actualParams = bleConnectableState.value.actualParams,
+        result = bleConnectableState.value.result,
+        error = bleConnectableState.value.error,
+        cleanup = bleConnectableState.value.cleanup,
+    )
     private val bleScanner = com.carassistant.core.BleScanner(appContext)
     val bleScanState = bleScanner.state
     fun setScanForeground(value: Boolean) = bleScanner.setForeground(value)
@@ -133,7 +160,7 @@ class MainViewModel(
     val connectionExportBusy = _connectionExportBusy.asStateFlow()
     fun prepareConnectionExport(raw: Boolean) {
         bleScanner.stop("用户保存扫描快照")
-        pendingConnectionExport = bleScanState.value.report(raw) + "\n\n" + bleDirectionSection() + "\n\n" + connectionReportSummary()
+        pendingConnectionExport = bleScanState.value.report(raw) + "\n\n" + bleDirectionSection() + "\n\n" + connectableAdvSection() + "\n\n" + connectionReportSummary()
     }
     fun saveConnectionExport(uri: android.net.Uri?) {
         val text = pendingConnectionExport
@@ -224,10 +251,10 @@ class MainViewModel(
                 val collected = withContext(Dispatchers.IO) {
                     com.carassistant.core.CarDiagnostics.collect(appContext)
                 }
-                val snapshot = collected.copy(fields = collected.fields + bleTestState.value.reportFields() + bleDirectionFields() + wifiDirectState.value.reportFields())
+                val snapshot = collected.copy(fields = collected.fields + bleTestState.value.reportFields() + bleDirectionFields() + bleConnectableFields() + wifiDirectState.value.reportFields())
                 _diagnostics.value = snapshot
                 if (generateReport && revision == diagnosticRevision) {
-                    val report = snapshot.report() + "\n\n" + bleScanState.value.report() + "\n\n" + bleDirectionSection() + "\n\n" + connectionReportSummary()
+                    val report = snapshot.report() + "\n\n" + bleScanState.value.report() + "\n\n" + bleDirectionSection() + "\n\n" + connectableAdvSection() + "\n\n" + connectionReportSummary()
                     _diagnosticReport.value = report
                     reportDeadlineMillis = android.os.SystemClock.elapsedRealtime() + 10 * 60 * 1000L
                     _diagnosticReportPublished.value = pushServer.publishDiagnosticReport(report, serverRevision)
@@ -723,6 +750,7 @@ class MainViewModel(
         // 不留下一个「看不见但还在跑」的服务
         downloader.release()
         bleTester.release()
+        bleConnectableTester.release()
         bleScanner.release()
         wifiDirect.release()
         pushServer.release()
