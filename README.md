@@ -6,9 +6,9 @@ v1.4.0 的广播测试是 `startAdvertising` + `connectable=false`，只能证�
 
 广播内容仍是本应用中立内容：同一测试 Service UUID 下，载荷改为 `CA2`（43 41 32，**不复用对照组的 CA1**），扫描响应为 SIG 保留测试公司 ID `0xFFFF` + 固定 3 字节标签（Android 没有 AD 短名 API，`setIncludeDeviceName(true)` 会把整机蓝牙名写进扫描响应且长度不可控）。`setLegacyMode(true)` 的 31 字节上限已实算：广播数据 24/31（系统 Flags 3 + Service Data 21，其中 128 位 UUID 16 字节 + 载荷 3 字节），扫描响应 7/31（AD 头 2 + 公司 ID 2 + 标签 3），两包合计的保守口径 31/31。界面与报告同时写出这段计算，收到 `ADVERTISE_FAILED_DATA_TOO_LARGE` 时按「测试数据问题」处理，不写成车机不支持。
 
-**判读方式：**「车机诊断」页 → 先点「开始 BLE 测试广播（30 秒）」（模式一，载荷 CA1）拿到对照组 → 再点「开始可连接 / 可扫描广播测试（30 秒）」（模式二，载荷 CA2）→ 看「两种模式对照」这一段：非连接是否成功 / 可连接是否成功 / 两者是否分离。`DATA_TOO_LARGE`＝测试数据问题；`TOO_MANY_ADVERTISERS`＝广播实例被占用，先让 CarLink 停止广播或 Force stop CarLink 再重测；只有 `FEATURE_UNSUPPORTED` 才是能力结论；`INTERNAL_ERROR`／未知一律记原因未知。8 秒内没有 `onAdvertisingSetStarted` 记为「回调超时」，既不算成功也不算不支持。所有回调（`onAdvertisingSetStarted` 含 status 数字码与 txPower、`onAdvertisingEnabled`、`onAdvertisingDataSet`、`onScanResponseDataSet`、`onAdvertisingSetStopped`）都带时间戳进报告；**启动回调成功 ≠ 手机能收到**，手机侧仍需用 nRF Connect 之类的工具实扫 UUID 下的 `CA2` 与 `0xFFFF` 标签后自行登记。
+**判读方式：**「车机诊断」页 → 先点「开始 BLE 测试广播（30 秒）」（模式一，载荷 CA1）拿到对照组 → 再点「开始可连接 / 可扫描广播测试（30 秒）」（模式二，载荷 CA2）→ 看「两种模式对照」这一段：非连接是否成功 / 可连接是否成功 / 两者是否分离。`onAdvertisingSetStarted` 是**成功与失败共用**的回调，本实现先判 status 再推进会话：只有 `status=0` 才算系统受理成功，非 0 一律按状态码归类失败（首版顺序写反会把能力结论报成成功，已修正）。`DATA_TOO_LARGE`＝测试数据问题；`TOO_MANY_ADVERTISERS`＝广播实例被占用，先让 CarLink 停止广播或 Force stop CarLink 再重测；只有 `FEATURE_UNSUPPORTED` 才是能力结论；`INTERNAL_ERROR`／未知一律记原因未知。8 秒内没有 `onAdvertisingSetStarted` 记为「回调超时」，既不算成功也不算不支持。所有回调（`onAdvertisingSetStarted` 含 status 数字码与 txPower、`onAdvertisingEnabled`、`onAdvertisingDataSet`、`onScanResponseDataSet`、`onAdvertisingSetStopped`）都带时间戳进报告；**启动回调成功 ≠ 手机能收到**，手机侧仍需用 nRF Connect 之类的工具实扫 UUID 下的 `CA2` 与 `0xFFFF` 标签后自行登记。
 
-本轮**只出测试 APK，未发版、未推送、未打标签**：版本号保持 1.4.0 (7)、targetSdk 28、既有 debug keystore 签名不变。`testDebugUnitTest` 38 项通过（0 失败、1 项可选材料测试默认跳过），`:app:lint` 0 error / 43 warning（含 ExpiredTargetSdkVersion，未新增抑制）。真机上「车机是否真的发出可连接广播、手机能否扫到 CA2」尚未验证。
+本轮**只出测试 APK，未发版、未推送、未打标签**：版本号保持 1.4.0 (7)、targetSdk 28、既有 debug keystore 签名不变。`testDebugUnitTest` 40 项通过（0 失败、1 项可选材料测试默认跳过），`:app:lint` 0 error / 43 warning（含 ExpiredTargetSdkVersion，未新增抑制）。真机上「车机是否真的发出可连接广播、手机能否扫到 CA2」尚未验证。
 
 ## v1.4.0：BLE 方向诊断（连接诊断增强）
 

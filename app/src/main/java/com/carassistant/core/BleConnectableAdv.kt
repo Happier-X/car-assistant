@@ -132,26 +132,35 @@ object BleConnectableAdv {
     }
 
     /**
+     * `onAdvertisingSetStarted` 的纯分发：**status == 0 才算系统受理成功**，非 0 一律按状态码归类失败。
+     *
+     * 与旧的 `AdvertiseCallback.onStartSuccess` 不同，这个回调**成功与失败共用**：
+     * FEATURE_UNSUPPORTED / DATA_TOO_LARGE / TOO_MANY_ADVERTISERS 都会带着非 0 status 调用它，
+     * 因此必须先判 status 再决定是否推进会话，否则失败会被当成启动成功。
+     */
+    fun startedOutcome(status: Int): ModeState =
+        if (status == 0) ModeState.STARTED else classify(status)
+
+    /**
      * 由会话阶段 + 启动回调状态码 + 是否超时推出本模式结论。
-     * 超时永远不算成功；失败阶段即使带回 status=0 也以失败为准，不写成成功。
+     *
+     * 防御优先级最高：只要带回非 0 状态码，**任何阶段**都按失败归类，绝不允许返回 [ModeState.STARTED]，
+     * 避免将来接线漏判时把 FEATURE_UNSUPPORTED 这类能力结论报成启动成功。
+     * 超时永远不算成功；失败阶段即使带回 status=0 也以失败为准。
      */
     fun modeState(
         phase: BleTestSession.Phase,
         startedStatus: Int? = null,
         timedOut: Boolean = false,
-    ): ModeState = when (phase) {
-        BleTestSession.Phase.IDLE -> ModeState.NOT_TESTED
-        BleTestSession.Phase.STARTING -> if (timedOut) ModeState.CALLBACK_TIMEOUT else ModeState.PENDING
-        BleTestSession.Phase.ADVERTISING,
-        BleTestSession.Phase.STOPPED,
-        BleTestSession.Phase.STOP_FAILED,
-        -> ModeState.STARTED
-        BleTestSession.Phase.FAILED -> when {
-            startedStatus != null && startedStatus != 0 -> classify(startedStatus)
-            startedStatus == 0 -> ModeState.FAILED_UNKNOWN
-            timedOut -> ModeState.CALLBACK_TIMEOUT
-            else -> ModeState.FAILED_UNKNOWN
-        }
+    ): ModeState = when {
+        // 1) 非 0 状态码 = 失败，与阶段无关（ADVERTISING/STOPPED 也一样）。
+        startedStatus != null && startedStatus != 0 -> classify(startedStatus)
+        // 2) 没有失败状态码时再看阶段。
+        phase == BleTestSession.Phase.IDLE -> ModeState.NOT_TESTED
+        phase == BleTestSession.Phase.STARTING -> if (timedOut) ModeState.CALLBACK_TIMEOUT else ModeState.PENDING
+        phase == BleTestSession.Phase.FAILED -> if (timedOut) ModeState.CALLBACK_TIMEOUT else ModeState.FAILED_UNKNOWN
+        // 3) 只剩 ADVERTISING / STOPPED / STOP_FAILED，且状态码为 null 或 0 → 才算启动成功。
+        else -> ModeState.STARTED
     }
 
     fun explain(state: ModeState): Explanation = when (state) {
