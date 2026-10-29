@@ -1,6 +1,6 @@
 # 车机助手 · Car Assistant
 
-## 未发布：可连接广播测试（第二种 BLE 广播模式）
+## v1.5.0：可连接广播测试（第二种 BLE 广播模式）
 
 v1.4.0 的广播测试是 `startAdvertising` + `connectable=false`，只能证明车机发得出**非连接**广播，测不出「能不能发**可连接**广播」这一维度。本轮在诊断页新增**第二种模式：可连接 / 可扫描广播**，用 `startAdvertisingSet` 复现 CarLink 车机端的参数组合：`setConnectable(true)` + `setScannable(true)` + `setLegacyMode(true)` + `primaryPhy=LE_1M` + `txPowerLevel=TX_POWER_MEDIUM`。两种模式并存、门禁/计时/停止清理各自独立，可以分别跑，结果不会互相污染；模式一保留为对照组。不反射修改 `mInterval`（`setInterval` 只用系统合法区间，本实现直接用系统默认）。
 
@@ -8,7 +8,7 @@ v1.4.0 的广播测试是 `startAdvertising` + `connectable=false`，只能证�
 
 **判读方式：**「车机诊断」页 → 先点「开始 BLE 测试广播（30 秒）」（模式一，载荷 CA1）拿到对照组 → 再点「开始可连接 / 可扫描广播测试（30 秒）」（模式二，载荷 CA2）→ 看「两种模式对照」这一段：非连接是否成功 / 可连接是否成功 / 两者是否分离。`onAdvertisingSetStarted` 是**成功与失败共用**的回调，本实现先判 status 再推进会话：只有 `status=0` 才算系统受理成功，非 0 一律按状态码归类失败（首版顺序写反会把能力结论报成成功，已修正）。`DATA_TOO_LARGE`＝测试数据问题；`TOO_MANY_ADVERTISERS`＝广播实例被占用，先让 CarLink 停止广播或 Force stop CarLink 再重测；只有 `FEATURE_UNSUPPORTED` 才是能力结论；`INTERNAL_ERROR`／未知一律记原因未知。8 秒内没有 `onAdvertisingSetStarted` 记为「回调超时」，既不算成功也不算不支持。所有回调（`onAdvertisingSetStarted` 含 status 数字码与 txPower、`onAdvertisingEnabled`、`onAdvertisingDataSet`、`onScanResponseDataSet`、`onAdvertisingSetStopped`）都带时间戳进报告；**启动回调成功 ≠ 手机能收到**，手机侧仍需用 nRF Connect 之类的工具实扫 UUID 下的 `CA2` 与 `0xFFFF` 标签后自行登记。
 
-本轮**只出测试 APK，未发版、未推送、未打标签**：版本号保持 1.4.0 (7)、targetSdk 28、既有 debug keystore 签名不变。`testDebugUnitTest` 40 项通过（0 失败、1 项可选材料测试默认跳过），`:app:lint` 0 error / 43 warning（含 ExpiredTargetSdkVersion，未新增抑制）。真机上「车机是否真的发出可连接广播、手机能否扫到 CA2」尚未验证。
+本次发布：版本 1.5.0 (8)，targetSdk 28 与既有 debug keystore 签名（证书 SHA-256 `7b946b65…8085d6c`）不变。`testDebugUnitTest` 40 项通过（0 失败、1 项可选材料测试默认跳过），`:app:lint` 实测 1 error / 45 warning：唯一 error 是 `ExpiredTargetSdkVersion`（按约束沿用 targetSdk 28，未新增抑制），其余 45 项为 warning；release APK 构建成功。**真机验收仍未完成**：车机是否真的发出可连接广播、手机 nRF Connect 能否扫到 `CA2`，以及「启动回调成功 ≠ 手机能收到」这一事实两侧的对照，均尚未验证。
 
 ## v1.4.0：BLE 方向诊断（连接诊断增强）
 

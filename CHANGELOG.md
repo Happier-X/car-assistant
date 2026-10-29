@@ -2,7 +2,7 @@
 
 本文件采用 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式。
 
-## [Unreleased]
+## [1.5.0] - 2026-10-29
 
 ### Added
 - **第二种 BLE 广播测试模式：可连接 / 可扫描广播**（`core/BleConnectableAdvertiserTest.kt`，纯逻辑 `core/BleConnectableAdv.kt`）：用 `startAdvertisingSet` 复现 CarLink 车机端的参数组合（`setConnectable(true)` + `setScannable(true)` + `setLegacyMode(true)` + `primaryPhy=LE_1M` + `txPowerLevel=TX_POWER_MEDIUM`），用来回答「车机能发非连接广播、但发不了可连接广播」这一维度。与 v1.4.0 的 `startAdvertising` + `connectable=false` 模式**并存**，门禁、计时（8 秒启动超时 / 30 秒总时长）、停止清理各自独立，两个模式可分别跑且结果不互相污染；对照组保持原样不动。
@@ -17,8 +17,8 @@
 
 ### 验证与限制
 - `testDebugUnitTest` 共 40 项通过、0 失败、1 项可选材料测试默认跳过（既有 26 项 + 新增 14 项 `BleConnectableAdvTest`：启动超时不算成功、失败阶段即使 status=0 也不写成成功、非 0 状态码归类并保留数字码且任何阶段都不得报成成功、启动回调先判 status 再推进会话（0→成功、5/1/2/3/4/99→对应失败态）、`DATA_TOO_LARGE` 与 `FEATURE_UNSUPPORTED` 归类不同、`TOO_MANY_ADVERTISERS` 指向 CarLink 而非能力、两模式门禁/载荷互不污染、默认导出不泄露载荷、组合结论不声称手机已收到）。
-- `:app:lint` 0 error、43 warning（含 `ExpiredTargetSdkVersion`，按约束沿用 targetSdk 28），未新增抑制、未新增告警来源。
-- 本轮**只出测试 APK，未发版、未推送、未打标签**：版本号保持 1.4.0 (7)、targetSdk 28、既有 debug keystore 签名（证书 SHA-256 `7b946b65…8085d6c`）不变。可连接广播的真机行为（车机是否真的发出可连接广播、手机能否扫到 `CA2`）仍需实机验证，本文件不声称已验证。
+- `:app:lint` 实测 **1 error / 45 warning**：唯一的 error 是 `ExpiredTargetSdkVersion`（Fatal，按约束沿用 targetSdk 28，`abortOnError = false` 但未新增抑制），其余 45 项均为 warning（`ObsoleteSdkInt` 12、`UnusedResources` 8、`UseKtx` 8、`NewerVersionAvailable` 5 等），未新增抑制、未新增告警来源。
+- 版本号 1.4.0 (7) → 1.5.0 (8)；targetSdk 28、既有 debug keystore 签名（证书 SHA-256 `7b946b65…8085d6c`）不变。可连接广播的真机行为（车机是否真的发出可连接广播、手机能否扫到 `CA2`）仍需实机验证，本文件不声称已验证。
 
 ## [1.4.0] - 2026-10-27
 
